@@ -1,0 +1,157 @@
+-- Auto Reconnect Configuration
+local GameId = game.GameId
+local JobId = game.JobId
+local PlaceId = game.PlaceId
+
+-- Store and load main script
+local mainScript = [[
+-- Services
+local replicatedStorage = game:GetService("ReplicatedStorage")
+local players = game:GetService("Players")
+local player = players.LocalPlayer
+local runService = game:GetService("RunService")
+local virtualUser = game:GetService("VirtualUser")
+local httpService = game:GetService("HttpService")
+
+-- Configuration
+local damageEvent = replicatedStorage.Events.Blocks.Damage
+local detectionRadius = 100
+local autoTriggerInterval = 3.00
+local selectedDigsite = "Sakura Digsite"
+
+-- Position Detection
+local triggerPosition = Vector3.new(39, 3, -281)
+local detectionThreshold = 10
+
+-- State
+local isAutoTriggerEnabled = false
+local teleportLocations = {
+    Vector3.new(83, 3, -314),
+    Vector3.new(1146, -228, -309)
+}
+local isTeleportActive = false
+local positionCheckEnabled = false
+
+-- Anti-AFK Configuration
+local antiAFKEnabled = false
+local lastActivityTime = tick()
+local ANTI_AFK_INTERVAL = 600
+
+-- Webhook Configuration
+local webhookUrl = ""
+local WEBHOOK_COOLDOWN = 60
+local lastWebhookTime = 0
+local autoScreenshotEnabled = false
+local screenshotInterval = 300
+
+-- List of digsites
+local digsites = {
+    "Beach Digsite", "Crystal Caves Digsite", "Dark Forest Digsite",
+    "Enchanted Digsite", "Farm Digsite", "Forest Digsite",
+    "Garden Digsite", "Jungle Digsite", "Kingdom Digsite",
+    "Magical Digsite", "Pirate Cove Digsite", "Pyramids Digsite",
+    "Sakura Digsite", "VIP Digsite", "Volcano Digsite",
+    "Pyramid Minigame"
+}
+
+-- Save Settings Function
+local function saveSettings()
+    local settings = {
+        selectedDigsite = selectedDigsite,
+        isAutoTriggerEnabled = isAutoTriggerEnabled,
+        autoTriggerInterval = autoTriggerInterval,
+        positionCheckEnabled = positionCheckEnabled,
+        antiAFKEnabled = antiAFKEnabled,
+        webhookUrl = webhookUrl,
+        autoScreenshotEnabled = autoScreenshotEnabled,
+        screenshotInterval = screenshotInterval
+    }
+    
+    writefile("mining_simulator_settings.json", httpService:JSONEncode(settings))
+end
+
+-- Load Settings Function
+local function loadSettings()
+    if isfile("mining_simulator_settings.json") then
+        local settings = httpService:JSONDecode(readfile("mining_simulator_settings.json"))
+        selectedDigsite = settings.selectedDigsite or "Sakura Digsite"
+        isAutoTriggerEnabled = settings.isAutoTriggerEnabled or false
+        autoTriggerInterval = settings.autoTriggerInterval or 3.00
+        positionCheckEnabled = settings.positionCheckEnabled or false
+        antiAFKEnabled = settings.antiAFKEnabled or false
+        webhookUrl = settings.webhookUrl or ""
+        autoScreenshotEnabled = settings.autoScreenshotEnabled or false
+        screenshotInterval = settings.screenshotInterval or 300
+    end
+end
+
+-- Anti-AFK Functions
+local function simulateActivity()
+    virtualUser:Button2Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+    task.wait(0.1)
+    virtualUser:Button2Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+end
+
+local function updateLastActivityTime()
+    lastActivityTime = tick()
+end
+
+local function startAntiAFK()
+    spawn(function()
+        while antiAFKEnabled do
+            local currentTime = tick()
+            if currentTime - lastActivityTime >= ANTI_AFK_INTERVAL then
+                simulateActivity()
+                updateLastActivityTime()
+            end
+            task.wait(1)
+        end
+    end)
+end
+
+-- [Rest of your main script code here]
+
+-- Add Save Settings to all toggle functions
+miningChannel:Toggle("Auto Dig", isAutoTriggerEnabled, function(bool)
+    isAutoTriggerEnabled = bool
+    if isAutoTriggerEnabled then
+        autoTrigger()
+    end
+    saveSettings()
+end)
+
+-- [Rest of your UI code with saveSettings() added to each toggle/change]
+
+-- Load settings on startup
+loadSettings()
+]]
+
+-- Auto Reconnect Function
+local function autoReconnect()
+    local queueonteleport = (syn and syn.queue_on_teleport) or queue_on_teleport or (fluxus and fluxus.queue_on_teleport)
+    if queueonteleport then
+        queueonteleport([[
+            loadstring(game:HttpGet('YOUR_RAW_SCRIPT_URL_HERE'))()
+            
+            -- Wait for game to load
+            repeat task.wait() until game:IsLoaded()
+            
+            -- Execute main script
+            ]]..mainScript..[[
+        ]])
+    end
+end
+
+-- Monitor for disconnection
+local function setupDisconnectHandler()
+    game:GetService("Players").PlayerRemoving:Connect(function(plr)
+        if plr == game:GetService("Players").LocalPlayer then
+            autoReconnect()
+            game:GetService("TeleportService"):TeleportToPlaceInstance(PlaceId, JobId)
+        end
+    end)
+end
+
+-- Initial Setup
+setupDisconnectHandler()
+loadstring(mainScript)()
