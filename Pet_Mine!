@@ -1,10 +1,5 @@
--- Auto Reconnect Configuration
-local GameId = game.GameId
-local JobId = game.JobId
-local PlaceId = game.PlaceId
 
--- Store and load main script
-local mainScript = [[
+
 -- Services
 local replicatedStorage = game:GetService("ReplicatedStorage")
 local players = game:GetService("Players")
@@ -15,13 +10,13 @@ local httpService = game:GetService("HttpService")
 
 -- Configuration
 local damageEvent = replicatedStorage.Events.Blocks.Damage
-local detectionRadius = 100
-local autoTriggerInterval = 3.00
-local selectedDigsite = "Sakura Digsite"
+local detectionRadius = 100 -- Detection radius in studs
+local autoTriggerInterval = 3.00 -- Default speed
+local selectedDigsite = "Sakura Digsite" -- Default digsite
 
 -- Position Detection
 local triggerPosition = Vector3.new(39, 3, -281)
-local detectionThreshold = 10
+local detectionThreshold = 10 -- Distance in studs to trigger teleport
 
 -- State
 local isAutoTriggerEnabled = false
@@ -35,7 +30,7 @@ local positionCheckEnabled = false
 -- Anti-AFK Configuration
 local antiAFKEnabled = false
 local lastActivityTime = tick()
-local ANTI_AFK_INTERVAL = 600
+local ANTI_AFK_INTERVAL = 600 -- 10 minutes
 
 -- Webhook Configuration
 local webhookUrl = ""
@@ -53,37 +48,6 @@ local digsites = {
     "Sakura Digsite", "VIP Digsite", "Volcano Digsite",
     "Pyramid Minigame"
 }
-
--- Save Settings Function
-local function saveSettings()
-    local settings = {
-        selectedDigsite = selectedDigsite,
-        isAutoTriggerEnabled = isAutoTriggerEnabled,
-        autoTriggerInterval = autoTriggerInterval,
-        positionCheckEnabled = positionCheckEnabled,
-        antiAFKEnabled = antiAFKEnabled,
-        webhookUrl = webhookUrl,
-        autoScreenshotEnabled = autoScreenshotEnabled,
-        screenshotInterval = screenshotInterval
-    }
-    
-    writefile("mining_simulator_settings.json", httpService:JSONEncode(settings))
-end
-
--- Load Settings Function
-local function loadSettings()
-    if isfile("mining_simulator_settings.json") then
-        local settings = httpService:JSONDecode(readfile("mining_simulator_settings.json"))
-        selectedDigsite = settings.selectedDigsite or "Sakura Digsite"
-        isAutoTriggerEnabled = settings.isAutoTriggerEnabled or false
-        autoTriggerInterval = settings.autoTriggerInterval or 3.00
-        positionCheckEnabled = settings.positionCheckEnabled or false
-        antiAFKEnabled = settings.antiAFKEnabled or false
-        webhookUrl = settings.webhookUrl or ""
-        autoScreenshotEnabled = settings.autoScreenshotEnabled or false
-        screenshotInterval = settings.screenshotInterval or 300
-    end
-end
 
 -- Anti-AFK Functions
 local function simulateActivity()
@@ -109,49 +73,301 @@ local function startAntiAFK()
     end)
 end
 
--- [Rest of your main script code here]
+local function setupAntiAFKTracking()
+    local character = player.Character or player.CharacterAdded:Wait()
+    local humanoid = character:WaitForChild("Humanoid")
+    
+    humanoid.Running:Connect(function()
+        if antiAFKEnabled then
+            updateLastActivityTime()
+        end
+    end)
+    
+    player.CharacterAdded:Connect(function(newCharacter)
+        local newHumanoid = newCharacter:WaitForChild("Humanoid")
+        newHumanoid.Running:Connect(function()
+            if antiAFKEnabled then
+                updateLastActivityTime()
+            end
+        end)
+    end)
+end
 
--- Add Save Settings to all toggle functions
-miningChannel:Toggle("Auto Dig", isAutoTriggerEnabled, function(bool)
-    isAutoTriggerEnabled = bool
-    if isAutoTriggerEnabled then
-        autoTrigger()
+-- Replace the screenshot capture portion in the sendWebhook function
+local function sendWebhook()
+    local currentTime = tick()
+    if currentTime - lastWebhookTime < WEBHOOK_COOLDOWN then
+        return
     end
-    saveSettings()
-end)
+    
+    lastWebhookTime = currentTime
+    
+    if webhookUrl == "" then
+        DiscordLib:Notification(
+            "Webhook Error", 
+            "Please set a webhook URL first!",
+            "Okay!"
+        )
+        return
+    end
 
--- [Rest of your UI code with saveSettings() added to each toggle/change]
-
--- Load settings on startup
-loadSettings()
-]]
-
--- Auto Reconnect Function
-local function autoReconnect()
-    local queueonteleport = (syn and syn.queue_on_teleport) or queue_on_teleport or (fluxus and fluxus.queue_on_teleport)
-    if queueonteleport then
-        queueonteleport([[
-            loadstring(game:HttpGet('YOUR_RAW_SCRIPT_URL_HERE'))()
-            
-            -- Wait for game to load
-            repeat task.wait() until game:IsLoaded()
-            
-            -- Execute main script
-            ]]..mainScript..[[
-        ]])
+    -- Use syn.capture instead of Screenshot service
+    local success, image = pcall(function()
+        return syn.capture()
+    end)
+    
+    if success and image then
+        local data = {
+            ["content"] = "Screenshot from Mining Simulator",
+            ["embeds"] = {
+                {
+                    ["title"] = "Mining Simulator Screenshot",
+                    ["description"] = "Automated screenshot from the game",
+                    ["color"] = 3447003,
+                    ["image"] = {
+                        ["url"] = "attachment://screenshot.png"
+                    }
+                }
+            }
+        }
+        
+        local response = syn.request({
+            Url = webhookUrl,
+            Method = "POST",
+            Headers = {
+                ["Content-Type"] = "application/json"
+            },
+            Body = httpService:JSONEncode(data)
+        })
+        
+        if response.Success then
+            DiscordLib:Notification(
+                "Screenshot Sent", 
+                "Successfully sent screenshot to webhook",
+                "Okay!"
+            )
+        else
+            DiscordLib:Notification(
+                "Webhook Error", 
+                "Failed to send screenshot: " .. tostring(response.StatusCode),
+                "Okay!"
+            )
+        end
+    else
+        DiscordLib:Notification(
+            "Screenshot Error", 
+            "Failed to capture screenshot",
+            "Okay!"
+        )
     end
 end
 
--- Monitor for disconnection
-local function setupDisconnectHandler()
-    game:GetService("Players").PlayerRemoving:Connect(function(plr)
-        if plr == game:GetService("Players").LocalPlayer then
-            autoReconnect()
-            game:GetService("TeleportService"):TeleportToPlaceInstance(PlaceId, JobId)
+-- Teleport Functions
+local function teleportPlayer(location)
+    local character = player.Character
+    if character and character:FindFirstChild("HumanoidRootPart") then
+        character.HumanoidRootPart.CFrame = CFrame.new(location)
+    else
+        warn("Character or HumanoidRootPart not found!")
+    end
+end
+
+local function waitForCharacterToLoad()
+    local character = player.Character or player.CharacterAdded:Wait()
+    while not character:FindFirstChild("HumanoidRootPart") do
+        task.wait(0.1)
+    end
+end
+
+local function initialSequentialTeleport()
+    teleportPlayer(teleportLocations[1])
+    task.wait(1)
+    teleportPlayer(teleportLocations[2])
+    waitForCharacterToLoad()
+end
+
+local function sequentialTeleport()
+    for _, location in ipairs(teleportLocations) do
+        teleportPlayer(location)
+        if location == teleportLocations[2] then
+            waitForCharacterToLoad()
+        end
+        task.wait(1)
+    end
+end
+
+-- Position Check Function
+local lastTeleportTime = 0
+local cooldownTime = 2
+
+local function checkPosition()
+    local character = player.Character
+    if character and character:FindFirstChild("HumanoidRootPart") then
+        local rootPart = character.HumanoidRootPart
+        local distance = (rootPart.Position - triggerPosition).Magnitude
+        local currentTime = tick()
+        
+        if distance <= detectionThreshold and positionCheckEnabled and 
+           currentTime - lastTeleportTime >= cooldownTime then
+            lastTeleportTime = currentTime
+            sequentialTeleport()
+        end
+    end
+end
+
+-- Mining Functions
+local function getBlocksWithinRadius(center, radius)
+    if not selectedDigsite then
+        warn("No digsite selected!")
+        return {}
+    end
+
+    local digsite = workspace.BlockRegions:FindFirstChild(selectedDigsite)
+    if not digsite then
+        warn("Selected digsite not found!")
+        return {}
+    end
+
+    local blocksInRange = {}
+    for _, obj in ipairs(digsite:GetDescendants()) do
+        if obj:IsA("Model") and obj:FindFirstChild("Core") then
+            local corePart = obj.Core
+            if (corePart.Position - center).Magnitude <= radius then
+                table.insert(blocksInRange, obj)
+            end
+        end
+    end
+    return blocksInRange
+end
+
+local function damageBlocks(blocks)
+    for _, block in ipairs(blocks) do
+        damageEvent:FireServer(block)
+    end
+end
+
+local function autoTrigger()
+    spawn(function()
+        while isAutoTriggerEnabled do
+            local character = player.Character
+            if character and character:FindFirstChild("HumanoidRootPart") then
+                local playerPosition = character.HumanoidRootPart.Position
+                local blocks = getBlocksWithinRadius(playerPosition, detectionRadius)
+                damageBlocks(blocks)
+            end
+            task.wait(autoTriggerInterval)
         end
     end)
 end
 
+-- Start Position Checking
+runService.Heartbeat:Connect(checkPosition)
+
+-- UI Setup
+local DiscordLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/bloodball/-back-ups-for-libs/main/discord"))()
+local win = DiscordLib:Window("Mining Simulator")
+local serv = win:Server("Main", "")
+
+-- Create Channels
+local miningChannel = serv:Channel("Auto Mining")
+local teleportChannel = serv:Channel("Teleports")
+local utilityChannel = serv:Channel("Utility")
+
+-- Mining Channel Setup
+miningChannel:Dropdown("Select Digsite", digsites, function(value)
+    selectedDigsite = value
+    DiscordLib:Notification("Digsite Selected", "Changed to: " .. value, "Okay!")
+end)
+
+miningChannel:Toggle("Auto Dig", false, function(bool)
+    isAutoTriggerEnabled = bool
+    if isAutoTriggerEnabled then
+        autoTrigger()
+    end
+end)
+
+miningChannel:Slider("Mining Speed", 1.00, 1.00, 5.00, function(value)
+    autoTriggerInterval = value
+end)
+
+-- Teleport Channel Setup
+teleportChannel:Toggle("Enable Position Detection", false, function(bool)
+    positionCheckEnabled = bool
+    if bool then
+        spawn(function()
+            initialSequentialTeleport()
+        end)
+    end
+    DiscordLib:Notification(
+        "Position Detection", 
+        bool and "Enabled - Will teleport when near position (39, 3, -281)" or "Disabled",
+        "Okay!"
+    )
+end)
+
+teleportChannel:Button("Teleport to Location 1", function()
+    teleportPlayer(teleportLocations[1])
+end)
+
+teleportChannel:Button("Teleport to Location 2", function()
+    teleportPlayer(teleportLocations[2])
+end)
+
+teleportChannel:Button("Sequential Teleport", function()
+    sequentialTeleport()
+end)
+
+-- Utility Channel Setup
+utilityChannel:Toggle("Anti-AFK", false, function(bool)
+    antiAFKEnabled = bool
+    if bool then
+        startAntiAFK()
+        setupAntiAFKTracking()
+        DiscordLib:Notification(
+            "Anti-AFK", 
+            "Anti-AFK system enabled - Will prevent kicks",
+            "Okay!"
+        )
+    else
+        DiscordLib:Notification(
+            "Anti-AFK", 
+            "Anti-AFK system disabled",
+            "Okay!"
+        )
+    end
+end)
+
+utilityChannel:TextBox("Webhook URL", "Enter your Discord webhook URL", false, function(url)
+    webhookUrl = url
+    DiscordLib:Notification(
+        "Webhook URL", 
+        "Webhook URL has been set",
+        "Okay!"
+    )
+end)
+
+utilityChannel:Button("Take Screenshot", function()
+    sendWebhook()
+end)
+
+utilityChannel:Toggle("Auto Screenshot", false, function(bool)
+    autoScreenshotEnabled = bool
+    if bool then
+        spawn(function()
+            while autoScreenshotEnabled do
+                sendWebhook()
+                task.wait(screenshotInterval)
+            end
+        end)
+    end
+end)
+
+utilityChannel:Slider("Screenshot Interval (minutes)", 1, 1, 60, function(value)
+    screenshotInterval = value * 60
+end)
+
+-- Credits
+serv:Channel("Credits"):Label("Created by Original Author")
+
 -- Initial Setup
-setupDisconnectHandler()
-loadstring(mainScript)()
+setupAntiAFKTracking()
