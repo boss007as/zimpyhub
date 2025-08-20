@@ -164,15 +164,50 @@ cup_pattern = not na(pivot_low[20]) and not na(pivot_low[10]) and not na(pivot_l
  pivot_low[10] < pivot_low[20] and pivot_low[10] < pivot_low and
  math.abs(pivot_low[20] - pivot_low) < (high - low) * 0.1
 
-// Elliott Wave Inspired Patterns (simplified 5-wave structure)
-wave_1 = close > close[5] and close[5] > close[10]
-wave_2 = close < close[5] and close[5] > close[10] and close > close[10]
-wave_3 = close > close[5] and close[5] > close[10] and close > close[15]
-wave_4 = close < close[5] and close[5] > close[10] and close > close[15]
-wave_5 = close > close[5] and close[5] > close[10] and close > close[20]
+// ============================================================================
+// ENHANCED ELLIOTT WAVE ANALYSIS - Current Wave Identification
+// ============================================================================
 
-elliott_bullish = wave_1[20] == true and wave_2[15] == true and wave_3[10] == true and wave_4[5] == true and wave_5 == true
-elliott_bearish = wave_1[20] == false and wave_2[15] == false and wave_3[10] == false and wave_4[5] == false and wave_5 == false
+// Define wave characteristics more precisely
+wave_1_start = ta.lowest(low, 20)  // Wave 1 starts from recent low
+wave_1_active = close > wave_1_start * 1.05 and close < wave_1_start * 1.25  // 5-25% up from low
+
+wave_2_correction = close < close[5] and close > wave_1_start * 1.02  // Correction but above wave 1 start
+wave_2_active = wave_2_correction and close > wave_1_start * 1.03
+
+wave_3_impulse = close > ta.highest(high, 10)[1] and volume > ta.sma(volume, 20) * 1.2  // Breaking highs with volume
+wave_3_active = wave_3_impulse and close > close[10] * 1.1  // Strong upward move
+
+wave_4_correction = close < close[3] and close > close[15]  // Shallow correction
+wave_4_active = wave_4_correction and close > ta.sma(close, 50)  // Above major trend
+
+wave_5_final = close > ta.highest(high, 5)[1] and rsi > 70  // Final push with overbought RSI
+wave_5_active = wave_5_final and volume < ta.sma(volume, 20)  // Often with declining volume
+
+// Current Wave Identification
+current_wave = wave_1_active ? 1 : wave_2_active ? 2 : wave_3_active ? 3 : wave_4_active ? 4 : wave_5_active ? 5 : 0
+
+// Elliott Wave Buy/Sell Signals
+elliott_buy_wave_1 = current_wave == 1 and not wave_1_active[1]  // Just entered wave 1
+elliott_buy_wave_3 = current_wave == 3 and not wave_3_active[1]  // Just entered wave 3  
+elliott_buy_wave_5 = current_wave == 5 and not wave_5_active[1]  // Just entered wave 5
+
+elliott_sell_wave_2 = current_wave == 2 and not wave_2_active[1]  // Just entered wave 2 correction
+elliott_sell_wave_4 = current_wave == 4 and not wave_4_active[1]  // Just entered wave 4 correction
+
+// Optimal Entry Prices
+wave_1_entry_price = wave_1_start * 1.03  // 3% above the low
+wave_3_entry_price = ta.highest(high, 10)[1] * 1.01  // Just above breakout
+wave_5_entry_price = ta.highest(high, 5)[1] * 1.005  // Minimal premium on final wave
+
+// Optimal Exit Prices  
+wave_2_exit_price = close * 0.95  // 5% below current for wave 2 correction
+wave_4_exit_price = close * 0.97  // 3% below current for wave 4 correction
+wave_5_exit_price = close * 1.05  // 5% above current for wave 5 completion
+
+// Legacy variables for compatibility
+elliott_bullish = elliott_buy_wave_1 or elliott_buy_wave_3 or elliott_buy_wave_5
+elliott_bearish = elliott_sell_wave_2 or elliott_sell_wave_4 or (current_wave == 5 and rsi > 80)
 
 // Rectangle Pattern
 rectangle_top = math.abs(high - high[5]) < (high - low) * 0.02 and 
@@ -387,6 +422,66 @@ p2 = plot(bb_lower, color=color.gray, title="BB Lower")
 fill(p1, p2, color=color.new(color.gray, 90), title="BB Fill")
 
 // ============================================================================
+// ELLIOTT WAVE VISUALIZATION & PRICE LEVELS
+// ============================================================================
+
+// Plot Elliott Wave Current Position
+wave_color = current_wave == 1 ? color.green : current_wave == 2 ? color.orange : 
+             current_wave == 3 ? color.blue : current_wave == 4 ? color.yellow : 
+             current_wave == 5 ? color.red : color.gray
+
+// Show current wave number
+if current_wave > 0
+    label.new(bar_index, high * 1.02, "WAVE " + str.tostring(current_wave), 
+     color=wave_color, textcolor=color.white, style=label.style_label_down, size=size.large)
+
+// Plot optimal entry price levels for buy waves (1, 3, 5)
+show_wave_1_entry = current_wave == 1 and wave_1_entry_price > 0
+show_wave_3_entry = current_wave == 3 and wave_3_entry_price > 0  
+show_wave_5_entry = current_wave == 5 and wave_5_entry_price > 0
+
+if show_wave_1_entry
+    line.new(bar_index - 10, wave_1_entry_price, bar_index + 10, wave_1_entry_price, 
+     color=color.green, style=line.style_solid, width=2)
+    label.new(bar_index, wave_1_entry_price, "WAVE 1 BUY: " + str.tostring(wave_1_entry_price, "#.##"), 
+     color=color.green, textcolor=color.white, style=label.style_label_left, size=size.normal)
+
+if show_wave_3_entry
+    line.new(bar_index - 10, wave_3_entry_price, bar_index + 10, wave_3_entry_price, 
+     color=color.blue, style=line.style_solid, width=2)
+    label.new(bar_index, wave_3_entry_price, "WAVE 3 BUY: " + str.tostring(wave_3_entry_price, "#.##"), 
+     color=color.blue, textcolor=color.white, style=label.style_label_left, size=size.normal)
+
+if show_wave_5_entry
+    line.new(bar_index - 10, wave_5_entry_price, bar_index + 10, wave_5_entry_price, 
+     color=color.red, style=line.style_solid, width=2)
+    label.new(bar_index, wave_5_entry_price, "WAVE 5 BUY: " + str.tostring(wave_5_entry_price, "#.##"), 
+     color=color.red, textcolor=color.white, style=label.style_label_left, size=size.normal)
+
+// Plot optimal exit price levels for correction waves (2, 4) and wave 5 top
+show_wave_2_exit = current_wave == 2 and wave_2_exit_price > 0
+show_wave_4_exit = current_wave == 4 and wave_4_exit_price > 0
+show_wave_5_exit = current_wave == 5 and wave_5_exit_price > 0
+
+if show_wave_2_exit
+    line.new(bar_index - 10, wave_2_exit_price, bar_index + 10, wave_2_exit_price, 
+     color=color.orange, style=line.style_dashed, width=2)
+    label.new(bar_index, wave_2_exit_price, "WAVE 2 SELL: " + str.tostring(wave_2_exit_price, "#.##"), 
+     color=color.orange, textcolor=color.white, style=label.style_label_left, size=size.normal)
+
+if show_wave_4_exit
+    line.new(bar_index - 10, wave_4_exit_price, bar_index + 10, wave_4_exit_price, 
+     color=color.yellow, style=line.style_dashed, width=2)
+    label.new(bar_index, wave_4_exit_price, "WAVE 4 SELL: " + str.tostring(wave_4_exit_price, "#.##"), 
+     color=color.yellow, textcolor=color.black, style=label.style_label_left, size=size.normal)
+
+if show_wave_5_exit
+    line.new(bar_index - 10, wave_5_exit_price, bar_index + 10, wave_5_exit_price, 
+     color=color.purple, style=line.style_dashed, width=2)
+    label.new(bar_index, wave_5_exit_price, "WAVE 5 EXIT: " + str.tostring(wave_5_exit_price, "#.##"), 
+     color=color.purple, textcolor=color.white, style=label.style_label_left, size=size.normal)
+
+// ============================================================================
 // ULTRA-STRONG SIGNALS ONLY - Just 2 Plots
 // ============================================================================
 
@@ -397,20 +492,42 @@ plotshape(buy_signal, title="ULTRA STRONG BUY", location=location.belowbar, colo
 plotshape(sell_signal, title="ULTRA STRONG SELL", location=location.abovebar, color=color.red, 
           style=shape.labeldown, text="STRONG SELL", textcolor=color.white, size=size.large)
 
-// Enhanced labels with comprehensive information
+// Enhanced labels with comprehensive information + Elliott Wave specific guidance
 if buy_signal
-    signal_details = "SCORE: " + str.tostring(bullish_score) + 
-     "\nGC: " + (golden_cross ? "✓" : "✗") + 
-     " EW: " + (elliott_bullish ? "✓" : "✗") + 
-     " RSI: " + str.tostring(math.round(rsi, 1))
+    // Determine best entry price based on current Elliott Wave
+    best_entry_price = current_wave == 1 ? wave_1_entry_price : 
+                      current_wave == 3 ? wave_3_entry_price : 
+                      current_wave == 5 ? wave_5_entry_price : close
+    
+    wave_guidance = current_wave == 1 ? "\n🚀 WAVE 1 - Early Entry!" : 
+                   current_wave == 3 ? "\n💎 WAVE 3 - Strongest Move!" : 
+                   current_wave == 5 ? "\n⚠️ WAVE 5 - Final Push!" : 
+                   "\n📊 Multi-Indicator Signal"
+    
+    signal_details = "ULTRA BUY - SCORE: " + str.tostring(bullish_score) + 
+     wave_guidance +
+     "\n💰 ENTRY: " + str.tostring(best_entry_price, "#.##") +
+     "\n📈 GC:" + (golden_cross ? "✓" : "✗") + " RSI:" + str.tostring(math.round(rsi, 1))
+    
     label.new(bar_index, low, signal_details, 
      color=color.green, textcolor=color.white, style=label.style_label_up, size=size.normal, yloc=yloc.belowbar)
 
 if sell_signal
-    signal_details = "SCORE: " + str.tostring(bearish_score) + 
-     "\nDC: " + (death_cross ? "✓" : "✗") + 
-     " EW: " + (elliott_bearish ? "✓" : "✗") + 
-     " RSI: " + str.tostring(math.round(rsi, 1))
+    // Determine best exit price based on current Elliott Wave  
+    best_exit_price = current_wave == 2 ? wave_2_exit_price :
+                     current_wave == 4 ? wave_4_exit_price :
+                     current_wave == 5 ? wave_5_exit_price : close
+    
+    wave_guidance = current_wave == 2 ? "\n📉 WAVE 2 - Correction!" : 
+                   current_wave == 4 ? "\n📉 WAVE 4 - Correction!" : 
+                   current_wave == 5 ? "\n🔚 WAVE 5 - Cycle End!" : 
+                   "\n📊 Multi-Indicator Signal"
+    
+    signal_details = "ULTRA SELL - SCORE: " + str.tostring(bearish_score) + 
+     wave_guidance +
+     "\n💰 EXIT: " + str.tostring(best_exit_price, "#.##") +
+     "\n📉 DC:" + (death_cross ? "✓" : "✗") + " RSI:" + str.tostring(math.round(rsi, 1))
+    
     label.new(bar_index, high, signal_details, 
      color=color.red, textcolor=color.white, style=label.style_label_down, size=size.normal, yloc=yloc.abovebar)
 
