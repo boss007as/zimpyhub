@@ -1000,25 +1000,25 @@ if barstate.islast
     table.cell(score_table, 0, 15, "Wave Status", text_color=color.black)
     wave_display = current_wave > 0 ? "Wave " + str.tostring(current_wave) : "No Wave"
     wave_bg = current_wave == 1 or current_wave == 3 or current_wave == 5 ? color.green : 
-              current_wave == 2 or current_wave == 4 ? color.orange : color.gray
+       current_wave == 2 or current_wave == 4 ? color.orange : color.gray
     table.cell(score_table, 1, 15, wave_display, text_color=color.white, bgcolor=wave_bg)
     
     wave_action = current_wave == 1 or current_wave == 3 ? "BUY WAVE" : 
-                  current_wave == 5 ? "FINAL BUY" : 
-                  current_wave == 2 or current_wave == 4 ? "CORRECTION" : "HOLD"
+       current_wave == 5 ? "FINAL BUY" : 
+       current_wave == 2 or current_wave == 4 ? "CORRECTION" : "HOLD"
     table.cell(score_table, 2, 15, wave_action, text_color=color.white, bgcolor=wave_bg)
     
     table.cell(score_table, 0, 16, "Entry Price", text_color=color.black)
     if buy_signal
         best_entry = current_wave == 1 ? wave_1_entry_price : 
-                    current_wave == 3 ? wave_3_entry_price : 
-                    current_wave == 5 ? wave_5_entry_price : close
+           current_wave == 3 ? wave_3_entry_price : 
+           current_wave == 5 ? wave_5_entry_price : close
         table.cell(score_table, 1, 16, str.tostring(best_entry, "#.##"), text_color=color.white, bgcolor=color.green)
         table.cell(score_table, 2, 16, "BUY NOW", text_color=color.white, bgcolor=color.green)
     else if sell_signal
         best_exit = current_wave == 2 ? wave_2_exit_price :
-                   current_wave == 4 ? wave_4_exit_price :
-                   current_wave == 5 ? wave_5_exit_price : close
+           current_wave == 4 ? wave_4_exit_price :
+           current_wave == 5 ? wave_5_exit_price : close
         table.cell(score_table, 1, 16, str.tostring(best_exit, "#.##"), text_color=color.white, bgcolor=color.red)
         table.cell(score_table, 2, 16, "SELL NOW", text_color=color.white, bgcolor=color.red)
     else
@@ -1027,8 +1027,8 @@ if barstate.islast
     
     table.cell(score_table, 0, 17, "Confirmations", text_color=color.black)
     confirmations = (golden_cross ? "GC " : "") + (death_cross ? "DC " : "") + 
-                   (bullish_reversal ? "BR " : "") + (bearish_reversal ? "BeR " : "") +
-                   (bullish_divergence ? "BD " : "") + (bearish_divergence ? "BeD " : "")
+       (bullish_reversal ? "BR " : "") + (bearish_reversal ? "BeR " : "") +
+       (bullish_divergence ? "BD " : "") + (bearish_divergence ? "BeD " : "")
     conf_text = confirmations != "" ? confirmations : "None"
     table.cell(score_table, 1, 17, conf_text, text_color=color.black)
     table.cell(score_table, 2, 17, "Score Diff: " + str.tostring(math.abs(bullish_score - bearish_score), "#.#"), text_color=color.black)
