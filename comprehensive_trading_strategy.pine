@@ -112,6 +112,10 @@ obv = ta.obv
 // Money Flow Index (MFI)
 mfi = ta.mfi(close, 14)
 
+// Global volume calculations to avoid conditional ta.sma calls
+volume_sma_20 = ta.sma(volume, 20)
+close_sma_50 = ta.sma(close, 50)
+
 // ============================================================================
 // CHART PATTERN DETECTION
 // ============================================================================
@@ -175,14 +179,14 @@ wave_1_active = close > wave_1_start * 1.05 and close < wave_1_start * 1.25  // 
 wave_2_correction = close < close[5] and close > wave_1_start * 1.02  // Correction but above wave 1 start
 wave_2_active = wave_2_correction and close > wave_1_start * 1.03
 
-wave_3_impulse = close > ta.highest(high, 10)[1] and volume > ta.sma(volume, 20) * 1.2  // Breaking highs with volume
+wave_3_impulse = close > ta.highest(high, 10)[1] and volume > volume_sma_20 * 1.2  // Breaking highs with volume
 wave_3_active = wave_3_impulse and close > close[10] * 1.1  // Strong upward move
 
 wave_4_correction = close < close[3] and close > close[15]  // Shallow correction
-wave_4_active = wave_4_correction and close > ta.sma(close, 50)  // Above major trend
+wave_4_active = wave_4_correction and close > close_sma_50  // Above major trend
 
 wave_5_final = close > ta.highest(high, 5)[1] and rsi > 70  // Final push with overbought RSI
-wave_5_active = wave_5_final and volume < ta.sma(volume, 20)  // Often with declining volume
+wave_5_active = wave_5_final and volume < volume_sma_20  // Often with declining volume
 
 // Current Wave Identification
 current_wave = wave_1_active ? 1 : wave_2_active ? 2 : wave_3_active ? 3 : wave_4_active ? 4 : wave_5_active ? 5 : 0
@@ -228,7 +232,7 @@ bullish_divergence = price_lower_low and (rsi_higher_low or macd_higher_low)
 
 // 2. ELLIOTT WAVE REVERSAL SIGNALS
 // Wave 5 exhaustion - multiple warning signs
-wave_5_exhaustion = current_wave == 5 and rsi > 75 and volume < ta.sma(volume, 20) * 0.8
+wave_5_exhaustion = current_wave == 5 and rsi > 75 and volume < volume_sma_20 * 0.8
 wave_5_reversal_imminent = wave_5_exhaustion and bearish_divergence
 
 // Wave 2/4 correction completion - bounce signals
@@ -247,8 +251,8 @@ major_resistance_2 = ta.highest(high, 100)
 resistance_zone = close >= major_resistance_1 * 0.98 or close >= major_resistance_2 * 0.98
 
 // 4. VOLUME REVERSAL SIGNALS
-volume_spike = volume > ta.sma(volume, 20) * 2.0
-volume_exhaustion = volume < ta.sma(volume, 20) * 0.5
+volume_spike = volume > volume_sma_20 * 2.0
+volume_exhaustion = volume < volume_sma_20 * 0.5
 
 // 5. MULTI-TIMEFRAME REVERSAL CONFIRMATION
 // Overbought/Oversold across multiple indicators
@@ -472,21 +476,28 @@ if gap_down and volume > volume_ma * 1.5
 score_difference = math.abs(bullish_score - bearish_score)
 required_difference = min_score * signal_strength_multiplier
 
-// Ultra-strong buy: High bullish score + significant lead over bearish + key confirmations
-strong_buy_conditions = bullish_score >= min_score and 
- score_difference >= required_difference and 
- bullish_score > bearish_score and
- (golden_cross or elliott_bullish or (rsi < rsi_oversold and macd_line > signal_line))
+// ULTRA HIGH CONFIDENCE SIGNALS ONLY
+// Require multiple major confirmations for maximum reliability
 
-// Ultra-strong sell: High bearish score + significant lead over bullish + key confirmations  
-strong_sell_conditions = bearish_score >= min_score and 
- score_difference >= required_difference and 
- bearish_score > bullish_score and
- (death_cross or elliott_bearish or (rsi > rsi_overbought and macd_line < signal_line))
+// Ultra-strong buy: Extreme conditions required
+ultra_buy_conditions = bullish_score >= (min_score + 5) and 
+ score_difference >= (required_difference * 1.5) and 
+ bullish_score > (bearish_score * 2) and
+ (golden_cross or (current_wave == 1 or current_wave == 3) or bullish_reversal) and
+ (rsi < 40 or bullish_divergence) and
+ volume > volume_sma_20 * 1.5
 
-// Final signals - only when ALL conditions perfectly align
-buy_signal = strong_buy_conditions
-sell_signal = strong_sell_conditions
+// Ultra-strong sell: Extreme conditions required  
+ultra_sell_conditions = bearish_score >= (min_score + 5) and 
+ score_difference >= (required_difference * 1.5) and 
+ bearish_score > (bullish_score * 2) and
+ (death_cross or current_wave == 5 or bearish_reversal) and
+ (rsi > 60 or bearish_divergence) and
+ volume > volume_sma_20 * 1.2
+
+// Final signals - ONLY ultra high confidence
+buy_signal = ultra_buy_conditions
+sell_signal = ultra_sell_conditions
 
 // ============================================================================
 // PLOTTING AND VISUALIZATION
@@ -510,10 +521,35 @@ wave_color = current_wave == 1 ? color.green : current_wave == 2 ? color.orange 
              current_wave == 3 ? color.blue : current_wave == 4 ? color.yellow : 
              current_wave == 5 ? color.red : color.gray
 
-// Show current wave number
+// ============================================================================
+// INDIVIDUAL ELLIOTT WAVE DETECTION PLOTTING
+// ============================================================================
+
+// Plot each wave detection separately with specific characteristics
+if wave_1_active and not wave_1_active[1]  // Just entered Wave 1
+    label.new(bar_index, high * 1.02, "🌊 WAVE 1\nSTARTING", 
+     color=color.green, textcolor=color.white, style=label.style_label_down, size=size.large)
+
+if wave_2_active and not wave_2_active[1]  // Just entered Wave 2
+    label.new(bar_index, high * 1.02, "🌊 WAVE 2\nCORRECTION", 
+     color=color.orange, textcolor=color.white, style=label.style_label_down, size=size.large)
+
+if wave_3_active and not wave_3_active[1]  // Just entered Wave 3
+    label.new(bar_index, high * 1.02, "🌊 WAVE 3\nSTRONGEST!", 
+     color=color.blue, textcolor=color.white, style=label.style_label_down, size=size.large)
+
+if wave_4_active and not wave_4_active[1]  // Just entered Wave 4
+    label.new(bar_index, high * 1.02, "🌊 WAVE 4\nCORRECTION", 
+     color=color.yellow, textcolor=color.black, style=label.style_label_down, size=size.large)
+
+if wave_5_active and not wave_5_active[1]  // Just entered Wave 5
+    label.new(bar_index, high * 1.02, "🌊 WAVE 5\nFINAL PUSH", 
+     color=color.red, textcolor=color.white, style=label.style_label_down, size=size.large)
+
+// Show current wave number (continuous)
 if current_wave > 0
-    label.new(bar_index, high * 1.02, "WAVE " + str.tostring(current_wave), 
-     color=wave_color, textcolor=color.white, style=label.style_label_down, size=size.large)
+    label.new(bar_index, high * 1.05, "WAVE " + str.tostring(current_wave), 
+     color=wave_color, textcolor=color.white, style=label.style_label_down, size=size.normal)
 
 // Plot optimal entry price levels for buy waves (1, 3, 5)
 show_wave_1_entry = current_wave == 1 and wave_1_entry_price > 0
@@ -608,12 +644,12 @@ if wave_4_bounce_setup
 // ULTRA-STRONG SIGNALS ONLY - Just 2 Plots
 // ============================================================================
 
-// Plot ONLY when ALL conditions perfectly align for maximum confidence
-plotshape(buy_signal, title="ULTRA STRONG BUY", location=location.belowbar, color=color.green, 
-          style=shape.labelup, text="STRONG BUY", textcolor=color.white, size=size.large)
+// Plot ONLY ultra-high confidence signals (extremely rare but highly reliable)
+plotshape(buy_signal, title="🚀 ULTRA HIGH CONFIDENCE BUY", location=location.belowbar, color=color.green, 
+          style=shape.labelup, text="🚀 ULTRA BUY", textcolor=color.white, size=size.large)
 
-plotshape(sell_signal, title="ULTRA STRONG SELL", location=location.abovebar, color=color.red, 
-          style=shape.labeldown, text="STRONG SELL", textcolor=color.white, size=size.large)
+plotshape(sell_signal, title="🔻 ULTRA HIGH CONFIDENCE SELL", location=location.abovebar, color=color.red, 
+          style=shape.labeldown, text="🔻 ULTRA SELL", textcolor=color.white, size=size.large)
 
 // Enhanced labels with comprehensive information + Elliott Wave specific guidance
 if buy_signal
