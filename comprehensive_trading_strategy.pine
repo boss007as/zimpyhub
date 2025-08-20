@@ -889,9 +889,14 @@ alertcondition(rectangle_breakout_bear, title="Rectangle Breakout Bear Alert", m
 // TABLE WITH CURRENT SCORES
 // ============================================================================
 
-if barstate.islast
-    // Performance Statistics Table
-    var table perf_table = table.new(position.top_left, 2, 8, bgcolor=color.white, border_width=1)
+// Create tables once and update them
+var table perf_table = table.new(position.top_left, 2, 8, bgcolor=color.white, border_width=1)
+var table score_table = table.new(position.top_right, 3, 18, bgcolor=color.white, border_width=1)
+
+// Update tables on every bar
+if barstate.isconfirmed or barstate.islast
+    // Clear and rebuild performance table
+    table.clear(perf_table)
     
     table.cell(perf_table, 0, 0, "BACKTEST RESULTS", text_color=color.white, bgcolor=color.blue)
     table.cell(perf_table, 1, 0, "VALUE", text_color=color.white, bgcolor=color.blue)
@@ -921,8 +926,8 @@ if barstate.islast
     pf_color = profit_factor >= 1.5 ? color.green : profit_factor >= 1.0 ? color.orange : color.red
     table.cell(perf_table, 1, 7, str.tostring(profit_factor, "#.#"), text_color=color.white, bgcolor=pf_color)
 
-    // Main Indicators Table - Expanded for signal details
-    var table score_table = table.new(position.top_right, 3, 18, bgcolor=color.white, border_width=1)
+    // Clear and rebuild main indicators table
+    table.clear(score_table)
     
     table.cell(score_table, 0, 0, "Indicator", text_color=color.black, bgcolor=color.gray)
     table.cell(score_table, 1, 0, "Bullish", text_color=color.black, bgcolor=color.green)
