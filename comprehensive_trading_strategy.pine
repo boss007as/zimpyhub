@@ -638,14 +638,16 @@ if in_long_position
         
         if trade_profit > 0
             winning_trades += 1
-            // Show winning trade label
+            // Show winning trade label - Resize Resistant
             label.new(bar_index, high, "💰 WIN\n+" + str.tostring(trade_profit, "#.#") + "%", 
-             color=color.green, textcolor=color.white, style=label.style_label_down, size=size.small)
+             color=color.green, textcolor=color.white, style=label.style_label_down, 
+             size=size.small, yloc=yloc.abovebar)
         else
             losing_trades += 1
-            // Show losing trade label
+            // Show losing trade label - Resize Resistant
             label.new(bar_index, low, "❌ LOSS\n" + str.tostring(trade_profit, "#.#") + "%", 
-             color=color.red, textcolor=color.white, style=label.style_label_up, size=size.small)
+             color=color.red, textcolor=color.white, style=label.style_label_up, 
+             size=size.small, yloc=yloc.belowbar)
             
         in_long_position := false
 
@@ -662,14 +664,16 @@ if in_short_position
         
         if trade_profit > 0
             winning_trades += 1
-            // Show winning short trade label
+            // Show winning short trade label - Resize Resistant
             label.new(bar_index, low, "💰 WIN\n+" + str.tostring(trade_profit, "#.#") + "%", 
-             color=color.green, textcolor=color.white, style=label.style_label_up, size=size.small)
+             color=color.green, textcolor=color.white, style=label.style_label_up, 
+             size=size.small, yloc=yloc.belowbar)
         else
             losing_trades += 1
-            // Show losing short trade label
+            // Show losing short trade label - Resize Resistant
             label.new(bar_index, high, "❌ LOSS\n" + str.tostring(trade_profit, "#.#") + "%", 
-             color=color.red, textcolor=color.white, style=label.style_label_down, size=size.small)
+             color=color.red, textcolor=color.white, style=label.style_label_down, 
+             size=size.small, yloc=yloc.abovebar)
             
         in_short_position := false
 
@@ -708,7 +712,7 @@ wave_color = current_wave == 1 ? color.green : current_wave == 2 ? color.orange 
 // ENHANCED ELLIOTT WAVE VISUALIZATION
 // ============================================================================
 
-// Show Elliott Wave structure with proper validation
+// Show Elliott Wave structure with proper validation - Resize Resistant
 if current_wave > 0
     wave_status = current_wave == 1 ? "🌊 WAVE 1 - Early Entry" : 
                  current_wave == 2 ? "🌊 WAVE 2 - Correction" : 
@@ -725,22 +729,23 @@ if current_wave > 0
        (bar_index % 20 == 0 and current_wave > 0)
     
     if show_wave_label
-        label.new(bar_index, high * 1.02, wave_status + wave_validation, 
-         color=wave_color, textcolor=color.white, style=label.style_label_down, size=size.normal)
+        label.new(bar_index, high, wave_status + wave_validation, 
+         color=wave_color, textcolor=color.white, style=label.style_label_down, 
+         size=size.normal, yloc=yloc.abovebar)
 
 // Draw wave structure lines for confirmed waves
 if not na(wave_1_start_price) and not na(wave_1_end_price) and wave_state >= 2
     line.new(wave_start_bar, wave_1_start_price, wave_start_bar + 20, wave_1_end_price, 
      color=color.green, style=line.style_solid, width=1)
     
-// Show wave pivot points for major waves
+// Show wave pivot points for major waves - Resize Resistant
 if not na(recent_high) and wave_state >= 2
     label.new(bar_index, recent_high, "H", color=color.blue, textcolor=color.white, 
-     style=label.style_label_down, size=size.tiny)
+     style=label.style_label_down, size=size.tiny, yloc=yloc.abovebar)
      
 if not na(recent_low) and wave_state >= 1
     label.new(bar_index, recent_low, "L", color=color.red, textcolor=color.white, 
-     style=label.style_label_up, size=size.tiny)
+     style=label.style_label_up, size=size.tiny, yloc=yloc.belowbar)
 
 // Plot optimal entry price levels for buy waves (1, 3, 5)
 show_wave_1_entry = current_wave == 1 and wave_1_entry_price > 0
@@ -754,17 +759,18 @@ show_wave_5_entry = current_wave == 5 and wave_5_entry_price > 0
 // Only show price lines for current wave without cluttering labels
 // The price information is already included in the main signal labels above
 
+// Entry price lines - Scale independent with extend
 if show_wave_1_entry
-    line.new(bar_index - 5, wave_1_entry_price, bar_index + 15, wave_1_entry_price, 
-     color=color.green, style=line.style_solid, width=1, extend=extend.right)
+    line.new(bar_index, wave_1_entry_price, bar_index + 1, wave_1_entry_price, 
+     color=color.green, style=line.style_solid, width=2, extend=extend.right)
 
 if show_wave_3_entry
-    line.new(bar_index - 5, wave_3_entry_price, bar_index + 15, wave_3_entry_price, 
-     color=color.blue, style=line.style_solid, width=1, extend=extend.right)
+    line.new(bar_index, wave_3_entry_price, bar_index + 1, wave_3_entry_price, 
+     color=color.blue, style=line.style_solid, width=2, extend=extend.right)
 
 if show_wave_5_entry
-    line.new(bar_index - 5, wave_5_entry_price, bar_index + 15, wave_5_entry_price, 
-     color=color.red, style=line.style_solid, width=1, extend=extend.right)
+    line.new(bar_index, wave_5_entry_price, bar_index + 1, wave_5_entry_price, 
+     color=color.red, style=line.style_solid, width=2, extend=extend.right)
 
 // ============================================================================
 // REVERSAL ZONE VISUALIZATION
@@ -791,14 +797,16 @@ critical_bearish_signal = wave_5_reversal_imminent ? "🚨 WAVE 5 EXHAUSTION!" :
    (bearish_reversal and reversal_strength_bear >= 3) ? "🔄 STRONG REVERSAL" :
    bearish_divergence ? "⚠️ BEARISH DIV" : ""
 
-// Show only ONE critical signal per direction to avoid overlap
+// Show only ONE critical signal per direction to avoid overlap - Resize Resistant
 if critical_bearish_signal != "" and critical_bearish_signal != "⚠️ BULLISH DIV"
-    label.new(bar_index, high * 1.01, critical_bearish_signal, 
-     color=color.red, textcolor=color.white, style=label.style_label_down, size=size.normal)
+    label.new(bar_index, high, critical_bearish_signal, 
+     color=color.red, textcolor=color.white, style=label.style_label_down, 
+     size=size.normal, yloc=yloc.abovebar)
 
 if critical_bullish_signal != "" and critical_bullish_signal != "⚠️ BEARISH DIV" and critical_bullish_signal != "🚨 WAVE 5 EXHAUSTION!"
-    label.new(bar_index, low * 0.99, critical_bullish_signal, 
-     color=color.green, textcolor=color.white, style=label.style_label_up, size=size.normal)
+    label.new(bar_index, low, critical_bullish_signal, 
+     color=color.green, textcolor=color.white, style=label.style_label_up, 
+     size=size.normal, yloc=yloc.belowbar)
 
 // ============================================================================
 // ULTRA-STRONG SIGNALS ONLY - Just 2 Plots
