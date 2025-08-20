@@ -1,0 +1,305 @@
+//@version=5
+indicator("Comprehensive Trading Strategy - All Indicators & Patterns", shorttitle="CTS", overlay=true)
+
+// ============================================================================
+// INPUT PARAMETERS
+// ============================================================================
+
+// Moving Averages
+ema_fast_length = input.int(12, title="EMA Fast Length", group="Moving Averages")
+ema_slow_length = input.int(26, title="EMA Slow Length", group="Moving Averages")
+sma_length = input.int(50, title="SMA Length", group="Moving Averages")
+sma_long_length = input.int(200, title="SMA Long Length", group="Moving Averages")
+
+// RSI
+rsi_length = input.int(14, title="RSI Length", group="RSI")
+rsi_overbought = input.int(70, title="RSI Overbought", group="RSI")
+rsi_oversold = input.int(30, title="RSI Oversold", group="RSI")
+
+// MACD
+macd_fast_length = input.int(12, title="MACD Fast Length", group="MACD")
+macd_slow_length = input.int(26, title="MACD Slow Length", group="MACD")
+macd_signal_length = input.int(9, title="MACD Signal Length", group="MACD")
+
+// Bollinger Bands
+bb_length = input.int(20, title="BB Length", group="Bollinger Bands")
+bb_mult = input.float(2.0, title="BB Multiplier", group="Bollinger Bands")
+
+// Stochastic
+stoch_k_length = input.int(14, title="Stochastic %K Length", group="Stochastic")
+stoch_d_length = input.int(3, title="Stochastic %D Length", group="Stochastic")
+stoch_overbought = input.int(80, title="Stochastic Overbought", group="Stochastic")
+stoch_oversold = input.int(20, title="Stochastic Oversold", group="Stochastic")
+
+// ADX
+adx_length = input.int(14, title="ADX Length", group="ADX")
+adx_threshold = input.int(25, title="ADX Threshold", group="ADX")
+
+// Volume
+volume_ma_length = input.int(20, title="Volume MA Length", group="Volume")
+
+// Williams %R
+williams_length = input.int(14, title="Williams %R Length", group="Williams %R")
+
+// Commodity Channel Index (CCI)
+cci_length = input.int(20, title="CCI Length", group="CCI")
+
+// Scoring System
+min_score = input.int(5, title="Minimum Score for Signal", group="Signal Settings", minval=1, maxval=15)
+
+// ============================================================================
+// INDICATOR CALCULATIONS
+// ============================================================================
+
+// Moving Averages
+ema_fast = ta.ema(close, ema_fast_length)
+ema_slow = ta.ema(close, ema_slow_length)
+sma = ta.sma(close, sma_length)
+sma_long = ta.sma(close, sma_long_length)
+
+// RSI
+rsi = ta.rsi(close, rsi_length)
+
+// MACD
+[macd_line, signal_line, histogram] = ta.macd(close, macd_fast_length, macd_slow_length, macd_signal_length)
+
+// Bollinger Bands
+[bb_middle, bb_upper, bb_lower] = ta.bb(close, bb_length, bb_mult)
+
+// Stochastic
+stoch_k = ta.stoch(close, high, low, stoch_k_length)
+stoch_d = ta.sma(stoch_k, stoch_d_length)
+
+// ADX
+[di_plus, di_minus, adx] = ta.dmi(adx_length, adx_length)
+
+// Volume
+volume_ma = ta.sma(volume, volume_ma_length)
+
+// Williams %R
+williams_r = ta.wpr(williams_length)
+
+// CCI
+cci = ta.cci(hlc3, cci_length)
+
+// ============================================================================
+// CHART PATTERN DETECTION
+// ============================================================================
+
+// Candlestick Patterns
+bullish_engulfing = close[1] < open[1] and close > open and close > open[1] and open < close[1]
+bearish_engulfing = close[1] > open[1] and close < open and close < open[1] and open > close[1]
+
+doji = math.abs(close - open) <= (high - low) * 0.1
+hammer = (close > open) and ((high - close) <= 2 * (close - open)) and ((open - low) >= 2 * (close - open))
+shooting_star = (close < open) and ((close - low) <= 2 * (open - close)) and ((high - open) >= 2 * (open - close))
+
+// Support and Resistance Levels
+pivot_high = ta.pivothigh(high, 5, 5)
+pivot_low = ta.pivotlow(low, 5, 5)
+
+// Double Top/Bottom Detection (simplified)
+double_top = pivot_high and pivot_high[10] and math.abs(pivot_high - pivot_high[10]) < (high - low) * 0.02
+double_bottom = pivot_low and pivot_low[10] and math.abs(pivot_low - pivot_low[10]) < (high - low) * 0.02
+
+// Triangle Pattern Detection (simplified)
+higher_lows = low > low[5] and low[5] > low[10]
+lower_highs = high < high[5] and high[5] < high[10]
+triangle_pattern = higher_lows and lower_highs
+
+// Head and Shoulders (simplified detection)
+head_shoulders = pivot_high[10] and pivot_high[5] and pivot_high and 
+                 pivot_high[5] > pivot_high[10] and pivot_high[5] > pivot_high and
+                 math.abs(pivot_high[10] - pivot_high) < (high - low) * 0.05
+
+// ============================================================================
+// SIGNAL SCORING SYSTEM
+// ============================================================================
+
+// Initialize scores
+bullish_score = 0
+bearish_score = 0
+
+// Moving Average Signals
+if close > ema_fast and ema_fast > ema_slow
+    bullish_score += 1
+if close < ema_fast and ema_fast < ema_slow
+    bearish_score += 1
+
+if close > sma and sma > sma_long
+    bullish_score += 1
+if close < sma and sma < sma_long
+    bearish_score += 1
+
+// RSI Signals
+if rsi > 50 and rsi < rsi_overbought
+    bullish_score += 1
+if rsi < 50 and rsi > rsi_oversold
+    bearish_score += 1
+
+if rsi < rsi_oversold
+    bullish_score += 1
+if rsi > rsi_overbought
+    bearish_score += 1
+
+// MACD Signals
+if macd_line > signal_line and histogram > histogram[1]
+    bullish_score += 1
+if macd_line < signal_line and histogram < histogram[1]
+    bearish_score += 1
+
+// Bollinger Bands Signals
+if close < bb_lower
+    bullish_score += 1
+if close > bb_upper
+    bearish_score += 1
+
+// Stochastic Signals
+if stoch_k > stoch_d and stoch_k < stoch_overbought
+    bullish_score += 1
+if stoch_k < stoch_d and stoch_k > stoch_oversold
+    bearish_score += 1
+
+// ADX Signals
+if adx > adx_threshold and di_plus > di_minus
+    bullish_score += 1
+if adx > adx_threshold and di_minus > di_plus
+    bearish_score += 1
+
+// Volume Signals
+if volume > volume_ma * 1.2
+    if close > open
+        bullish_score += 1
+    else
+        bearish_score += 1
+
+// Williams %R Signals
+if williams_r > -80
+    bullish_score += 1
+if williams_r < -20
+    bearish_score += 1
+
+// CCI Signals
+if cci > 0 and cci < 100
+    bullish_score += 1
+if cci < 0 and cci > -100
+    bearish_score += 1
+
+// Chart Pattern Signals
+if bullish_engulfing or hammer or double_bottom
+    bullish_score += 2
+
+if bearish_engulfing or shooting_star or double_top or head_shoulders
+    bearish_score += 2
+
+if triangle_pattern and close > close[5]
+    bullish_score += 1
+if triangle_pattern and close < close[5]
+    bearish_score += 1
+
+// ============================================================================
+// FINAL SIGNALS
+// ============================================================================
+
+buy_signal = bullish_score >= min_score and bullish_score > bearish_score
+sell_signal = bearish_score >= min_score and bearish_score > bullish_score
+
+// ============================================================================
+// PLOTTING AND VISUALIZATION
+// ============================================================================
+
+// Plot Moving Averages
+plot(ema_fast, color=color.blue, title="EMA Fast", linewidth=1)
+plot(ema_slow, color=color.red, title="EMA Slow", linewidth=1)
+plot(sma, color=color.orange, title="SMA", linewidth=2)
+plot(sma_long, color=color.purple, title="SMA Long", linewidth=2)
+
+// Plot Bollinger Bands
+p1 = plot(bb_upper, color=color.gray, title="BB Upper")
+p2 = plot(bb_lower, color=color.gray, title="BB Lower")
+fill(p1, p2, color=color.new(color.gray, 90), title="BB Fill")
+
+// Plot Buy/Sell Signals
+plotshape(buy_signal, title="Buy Signal", location=location.belowbar, color=color.green, 
+          style=shape.labelup, text="BUY\n" + str.tostring(bullish_score), textcolor=color.white, size=size.normal)
+
+plotshape(sell_signal, title="Sell Signal", location=location.abovebar, color=color.red, 
+          style=shape.labeldown, text="SELL\n" + str.tostring(bearish_score), textcolor=color.white, size=size.normal)
+
+// Plot Chart Patterns
+plotshape(bullish_engulfing, title="Bullish Engulfing", location=location.belowbar, 
+          color=color.lime, style=shape.triangleup, size=size.small)
+plotshape(bearish_engulfing, title="Bearish Engulfing", location=location.abovebar, 
+          color=color.maroon, style=shape.triangledown, size=size.small)
+
+plotshape(hammer, title="Hammer", location=location.belowbar, 
+          color=color.yellow, style=shape.diamond, size=size.tiny)
+plotshape(shooting_star, title="Shooting Star", location=location.abovebar, 
+          color=color.yellow, style=shape.diamond, size=size.tiny)
+
+plotshape(double_bottom, title="Double Bottom", location=location.belowbar, 
+          color=color.aqua, style=shape.square, size=size.small)
+plotshape(double_top, title="Double Top", location=location.abovebar, 
+          color=color.fuchsia, style=shape.square, size=size.small)
+
+plotshape(head_shoulders, title="Head & Shoulders", location=location.abovebar, 
+          color=color.navy, style=shape.xcross, size=size.normal)
+
+// Background coloring for strong signals
+bgcolor(buy_signal and bullish_score >= min_score + 3 ? color.new(color.green, 85) : na, title="Strong Buy Background")
+bgcolor(sell_signal and bearish_score >= min_score + 3 ? color.new(color.red, 85) : na, title="Strong Sell Background")
+
+// ============================================================================
+// ALERTS
+// ============================================================================
+
+alertcondition(buy_signal, title="Buy Alert", message="Strong BUY signal detected! Score: {{plot(\"bullish_score\")}}")
+alertcondition(sell_signal, title="Sell Alert", message="Strong SELL signal detected! Score: {{plot(\"bearish_score\")}}")
+
+alertcondition(bullish_engulfing, title="Bullish Engulfing Alert", message="Bullish Engulfing pattern detected")
+alertcondition(bearish_engulfing, title="Bearish Engulfing Alert", message="Bearish Engulfing pattern detected")
+
+// ============================================================================
+// TABLE WITH CURRENT SCORES
+// ============================================================================
+
+if barstate.islast
+    var table score_table = table.new(position.top_right, 3, 10, bgcolor=color.white, border_width=1)
+    
+    table.cell(score_table, 0, 0, "Indicator", text_color=color.black, bgcolor=color.gray)
+    table.cell(score_table, 1, 0, "Bullish", text_color=color.black, bgcolor=color.green)
+    table.cell(score_table, 2, 0, "Bearish", text_color=color.black, bgcolor=color.red)
+    
+    table.cell(score_table, 0, 1, "Total Score", text_color=color.black)
+    table.cell(score_table, 1, 1, str.tostring(bullish_score), text_color=color.white, bgcolor=color.green)
+    table.cell(score_table, 2, 1, str.tostring(bearish_score), text_color=color.white, bgcolor=color.red)
+    
+    table.cell(score_table, 0, 2, "RSI", text_color=color.black)
+    table.cell(score_table, 1, 2, str.tostring(math.round(rsi, 2)), text_color=color.black)
+    table.cell(score_table, 2, 2, rsi > rsi_overbought ? "OB" : rsi < rsi_oversold ? "OS" : "Neutral", text_color=color.black)
+    
+    table.cell(score_table, 0, 3, "MACD", text_color=color.black)
+    table.cell(score_table, 1, 3, macd_line > signal_line ? "↑" : "↓", text_color=color.black)
+    table.cell(score_table, 2, 3, str.tostring(math.round(macd_line, 4)), text_color=color.black)
+    
+    table.cell(score_table, 0, 4, "Stochastic", text_color=color.black)
+    table.cell(score_table, 1, 4, str.tostring(math.round(stoch_k, 2)), text_color=color.black)
+    table.cell(score_table, 2, 4, stoch_k > stoch_overbought ? "OB" : stoch_k < stoch_oversold ? "OS" : "Neutral", text_color=color.black)
+    
+    table.cell(score_table, 0, 5, "ADX", text_color=color.black)
+    table.cell(score_table, 1, 5, str.tostring(math.round(adx, 2)), text_color=color.black)
+    table.cell(score_table, 2, 5, adx > adx_threshold ? "Strong" : "Weak", text_color=color.black)
+    
+    table.cell(score_table, 0, 6, "Williams %R", text_color=color.black)
+    table.cell(score_table, 1, 6, str.tostring(math.round(williams_r, 2)), text_color=color.black)
+    table.cell(score_table, 2, 6, williams_r > -20 ? "OB" : williams_r < -80 ? "OS" : "Neutral", text_color=color.black)
+    
+    table.cell(score_table, 0, 7, "CCI", text_color=color.black)
+    table.cell(score_table, 1, 7, str.tostring(math.round(cci, 2)), text_color=color.black)
+    table.cell(score_table, 2, 7, cci > 100 ? "OB" : cci < -100 ? "OS" : "Neutral", text_color=color.black)
+    
+    table.cell(score_table, 0, 8, "Signal", text_color=color.black)
+    signal_text = buy_signal ? "BUY" : sell_signal ? "SELL" : "HOLD"
+    signal_color = buy_signal ? color.green : sell_signal ? color.red : color.gray
+    table.cell(score_table, 1, 8, signal_text, text_color=color.white, bgcolor=signal_color)
+    table.cell(score_table, 2, 8, buy_signal ? str.tostring(bullish_score) : sell_signal ? str.tostring(bearish_score) : "0", text_color=color.black)
