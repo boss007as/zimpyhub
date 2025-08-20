@@ -533,14 +533,14 @@ strong_buy_conditions = bullish_score >= min_score and
    score_difference >= required_difference and 
    bullish_score > bearish_score and
    (golden_cross or (current_wave == 1 or current_wave == 3) or bullish_reversal or 
-    (rsi < rsi_oversold and macd_line > signal_line))
+   (rsi < rsi_oversold and macd_line > signal_line))
 
 // Strong sell: Multiple confirmations required  
 strong_sell_conditions = bearish_score >= min_score and 
    score_difference >= required_difference and 
    bearish_score > bullish_score and
    (death_cross or current_wave == 5 or bearish_reversal or 
-    (rsi > rsi_overbought and macd_line < signal_line))
+   (rsi > rsi_overbought and macd_line < signal_line))
 
 // Final signals - High confidence but achievable
 buy_signal = strong_buy_conditions
