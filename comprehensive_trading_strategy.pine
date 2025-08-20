@@ -45,7 +45,7 @@ williams_length = input.int(14, title="Williams %R Length", group="Williams %R")
 cci_length = input.int(20, title="CCI Length", group="CCI")
 
 // Scoring System
-min_score = input.int(5, title="Minimum Score for Signal", group="Signal Settings", minval=1, maxval=15)
+min_score = input.int(8, title="Minimum Score for Signal", group="Signal Settings", minval=1, maxval=25)
 
 // ============================================================================
 // INDICATOR CALCULATIONS
@@ -82,6 +82,35 @@ williams_r = ta.wpr(williams_length)
 // CCI
 cci = ta.cci(hlc3, cci_length)
 
+// Golden Cross and Death Cross
+golden_cross = ta.crossover(ema_fast, sma_long)
+death_cross = ta.crossunder(ema_fast, sma_long)
+
+// Fibonacci Levels (simplified)
+fib_high = ta.highest(high, 50)
+fib_low = ta.lowest(low, 50)
+fib_range = fib_high - fib_low
+fib_236 = fib_low + fib_range * 0.236
+fib_382 = fib_low + fib_range * 0.382
+fib_500 = fib_low + fib_range * 0.500
+fib_618 = fib_low + fib_range * 0.618
+fib_786 = fib_low + fib_range * 0.786
+
+// Parabolic SAR
+psar = ta.sar(0.02, 0.02, 0.2)
+
+// Ichimoku Cloud components
+tenkan = (ta.highest(high, 9) + ta.lowest(low, 9)) / 2
+kijun = (ta.highest(high, 26) + ta.lowest(low, 26)) / 2
+senkou_a = (tenkan + kijun) / 2
+senkou_b = (ta.highest(high, 52) + ta.lowest(low, 52)) / 2
+
+// On Balance Volume (OBV)
+obv = ta.obv
+
+// Money Flow Index (MFI)
+mfi = ta.mfi(hlc3, volume, 14)
+
 // ============================================================================
 // CHART PATTERN DETECTION
 // ============================================================================
@@ -111,6 +140,73 @@ triangle_pattern = higher_lows and lower_highs
 head_shoulders = not na(pivot_high[10]) and not na(pivot_high[5]) and not na(pivot_high) and 
                  pivot_high[5] > pivot_high[10] and pivot_high[5] > pivot_high and
                  math.abs(pivot_high[10] - pivot_high) < (high - low) * 0.05
+
+// Inverse Head and Shoulders
+inv_head_shoulders = not na(pivot_low[10]) and not na(pivot_low[5]) and not na(pivot_low) and 
+                     pivot_low[5] < pivot_low[10] and pivot_low[5] < pivot_low and
+                     math.abs(pivot_low[10] - pivot_low) < (high - low) * 0.05
+
+// Flag and Pennant Patterns
+flag_pattern_bull = close > close[10] and close[10] > close[20] and 
+                    (high[1] - low[1]) < (high[10] - low[10]) * 0.5
+flag_pattern_bear = close < close[10] and close[10] < close[20] and 
+                    (high[1] - low[1]) < (high[10] - low[10]) * 0.5
+
+// Wedge Patterns
+rising_wedge = low > low[5] and low[5] > low[10] and high > high[5] and high[5] > high[10] and
+               (high - low) < (high[10] - low[10])
+falling_wedge = low < low[5] and low[5] < low[10] and high < high[5] and high[5] < high[10] and
+                (high - low) < (high[10] - low[10])
+
+// Cup and Handle Pattern
+cup_pattern = pivot_low[20] and pivot_low[10] and pivot_low and 
+              pivot_low[10] < pivot_low[20] and pivot_low[10] < pivot_low and
+              math.abs(pivot_low[20] - pivot_low) < (high - low) * 0.1
+
+// Elliott Wave Inspired Patterns (simplified 5-wave structure)
+wave_1 = close > close[5] and close[5] > close[10]
+wave_2 = close < close[5] and close[5] > close[10] and close > close[10]
+wave_3 = close > close[5] and close[5] > close[10] and close > close[15]
+wave_4 = close < close[5] and close[5] > close[10] and close > close[15]
+wave_5 = close > close[5] and close[5] > close[10] and close > close[20]
+
+elliott_bullish = wave_1[20] and wave_2[15] and wave_3[10] and wave_4[5] and wave_5
+elliott_bearish = not wave_1[20] and not wave_2[15] and not wave_3[10] and not wave_4[5] and not wave_5
+
+// Rectangle Pattern
+rectangle_top = math.abs(high - high[5]) < (high - low) * 0.02 and 
+                math.abs(high[5] - high[10]) < (high - low) * 0.02
+rectangle_bottom = math.abs(low - low[5]) < (high - low) * 0.02 and 
+                   math.abs(low[5] - low[10]) < (high - low) * 0.02
+rectangle_pattern = rectangle_top and rectangle_bottom
+
+// Breakout from Rectangle
+rectangle_breakout_bull = rectangle_pattern[1] and close > high[1]
+rectangle_breakout_bear = rectangle_pattern[1] and close < low[1]
+
+// Three White Soldiers / Three Black Crows
+three_white_soldiers = close > open and close[1] > open[1] and close[2] > open[2] and
+                       close > close[1] and close[1] > close[2] and
+                       open < close[1] and open[1] < close[2]
+
+three_black_crows = close < open and close[1] < open[1] and close[2] < open[2] and
+                    close < close[1] and close[1] < close[2] and
+                    open > close[1] and open[1] > close[2]
+
+// Morning Star / Evening Star
+morning_star = close[2] < open[2] and math.abs(close[1] - open[1]) < (high[1] - low[1]) * 0.3 and
+               close > open and close > (close[2] + open[2]) / 2
+
+evening_star = close[2] > open[2] and math.abs(close[1] - open[1]) < (high[1] - low[1]) * 0.3 and
+               close < open and close < (close[2] + open[2]) / 2
+
+// Gap Patterns
+gap_up = low > high[1]
+gap_down = high < low[1]
+
+// Support and Resistance Bounce
+support_bounce = low <= fib_382 and low >= fib_236 and close > open
+resistance_rejection = high >= fib_618 and high <= fib_786 and close < open
 
 // ============================================================================
 // SIGNAL SCORING SYSTEM
@@ -185,8 +281,38 @@ if cci > 0 and cci < 100
 if cci < 0 and cci > -100
     bearish_score += 1
 
-// Chart Pattern Signals
-if bullish_engulfing or hammer or double_bottom
+// Golden Cross and Death Cross Signals
+if golden_cross
+    bullish_score += 3
+if death_cross
+    bearish_score += 3
+
+// Parabolic SAR Signals
+if close > psar
+    bullish_score += 1
+if close < psar
+    bearish_score += 1
+
+// Ichimoku Signals
+if close > senkou_a and close > senkou_b and tenkan > kijun
+    bullish_score += 2
+if close < senkou_a and close < senkou_b and tenkan < kijun
+    bearish_score += 2
+
+// MFI Signals
+if mfi < 20
+    bullish_score += 1
+if mfi > 80
+    bearish_score += 1
+
+// Fibonacci Support/Resistance
+if support_bounce
+    bullish_score += 2
+if resistance_rejection
+    bearish_score += 2
+
+// Chart Pattern Signals (Enhanced)
+if bullish_engulfing or hammer or double_bottom or inv_head_shoulders
     bullish_score += 2
 
 if bearish_engulfing or shooting_star or double_top or head_shoulders
@@ -195,6 +321,31 @@ if bearish_engulfing or shooting_star or double_top or head_shoulders
 if triangle_pattern and close > close[5]
     bullish_score += 1
 if triangle_pattern and close < close[5]
+    bearish_score += 1
+
+// Advanced Pattern Signals
+if flag_pattern_bull or falling_wedge or cup_pattern or morning_star or three_white_soldiers
+    bullish_score += 2
+
+if flag_pattern_bear or rising_wedge or evening_star or three_black_crows
+    bearish_score += 2
+
+// Elliott Wave Signals
+if elliott_bullish
+    bullish_score += 3
+if elliott_bearish
+    bearish_score += 3
+
+// Rectangle Breakout Signals
+if rectangle_breakout_bull
+    bullish_score += 2
+if rectangle_breakout_bear
+    bearish_score += 2
+
+// Gap Signals (with volume confirmation)
+if gap_up and volume > volume_ma * 1.5
+    bullish_score += 1
+if gap_down and volume > volume_ma * 1.5
     bearish_score += 1
 
 // ============================================================================
@@ -214,6 +365,23 @@ plot(ema_slow, color=color.red, title="EMA Slow", linewidth=1)
 plot(sma, color=color.orange, title="SMA", linewidth=2)
 plot(sma_long, color=color.purple, title="SMA Long", linewidth=2)
 
+// Plot Parabolic SAR
+plot(psar, color=close > psar ? color.green : color.red, style=plot.style_circles, linewidth=1, title="PSAR")
+
+// Plot Ichimoku Cloud (optional - can be toggled)
+show_ichimoku = input.bool(false, title="Show Ichimoku Cloud", group="Display Options")
+p_senkou_a = plot(show_ichimoku ? senkou_a[26] : na, color=color.green, title="Senkou A", offset=26)
+p_senkou_b = plot(show_ichimoku ? senkou_b[26] : na, color=color.red, title="Senkou B", offset=26)
+fill(p_senkou_a, p_senkou_b, color=senkou_a[26] > senkou_b[26] ? color.new(color.green, 80) : color.new(color.red, 80), title="Ichimoku Cloud")
+
+// Plot Fibonacci Levels (optional)
+show_fib = input.bool(false, title="Show Fibonacci Levels", group="Display Options")
+plot(show_fib ? fib_236 : na, color=color.yellow, style=plot.style_line, linewidth=1, title="Fib 23.6%")
+plot(show_fib ? fib_382 : na, color=color.orange, style=plot.style_line, linewidth=1, title="Fib 38.2%")
+plot(show_fib ? fib_500 : na, color=color.white, style=plot.style_line, linewidth=2, title="Fib 50%")
+plot(show_fib ? fib_618 : na, color=color.orange, style=plot.style_line, linewidth=1, title="Fib 61.8%")
+plot(show_fib ? fib_786 : na, color=color.yellow, style=plot.style_line, linewidth=1, title="Fib 78.6%")
+
 // Plot Bollinger Bands
 p1 = plot(bb_upper, color=color.gray, title="BB Upper")
 p2 = plot(bb_lower, color=color.gray, title="BB Lower")
@@ -226,14 +394,14 @@ plotshape(buy_signal, title="Buy Signal", location=location.belowbar, color=colo
 plotshape(sell_signal, title="Sell Signal", location=location.abovebar, color=color.red, 
           style=shape.labeldown, text="SELL", textcolor=color.white, size=size.normal)
 
-// Add labels with scores
+// Add labels with scores - using relative positioning for better scaling
 if buy_signal
-    label.new(bar_index, low - (high - low) * 0.1, "Score: " + str.tostring(bullish_score), 
-              color=color.green, textcolor=color.white, style=label.style_label_up, size=size.small)
+    label.new(bar_index, low, "Score: " + str.tostring(bullish_score), 
+              color=color.green, textcolor=color.white, style=label.style_label_up, size=size.small, yloc=yloc.belowbar)
 
 if sell_signal
-    label.new(bar_index, high + (high - low) * 0.1, "Score: " + str.tostring(bearish_score), 
-              color=color.red, textcolor=color.white, style=label.style_label_down, size=size.small)
+    label.new(bar_index, high, "Score: " + str.tostring(bearish_score), 
+              color=color.red, textcolor=color.white, style=label.style_label_down, size=size.small, yloc=yloc.abovebar)
 
 // Plot Chart Patterns
 plotshape(bullish_engulfing, title="Bullish Engulfing", location=location.belowbar, 
@@ -253,6 +421,54 @@ plotshape(double_top, title="Double Top", location=location.abovebar,
 
 plotshape(head_shoulders, title="Head & Shoulders", location=location.abovebar, 
           color=color.navy, style=shape.xcross, size=size.normal)
+
+// Plot Golden Cross and Death Cross
+plotshape(golden_cross, title="Golden Cross", location=location.belowbar, 
+          color=color.gold, style=shape.labelup, text="GC", textcolor=color.black, size=size.large)
+plotshape(death_cross, title="Death Cross", location=location.abovebar, 
+          color=color.black, style=shape.labeldown, text="DC", textcolor=color.white, size=size.large)
+
+// Plot Advanced Patterns
+plotshape(inv_head_shoulders, title="Inverse H&S", location=location.belowbar, 
+          color=color.teal, style=shape.xcross, size=size.normal)
+
+plotshape(flag_pattern_bull, title="Bull Flag", location=location.belowbar, 
+          color=color.lime, style=shape.flag, size=size.small)
+plotshape(flag_pattern_bear, title="Bear Flag", location=location.abovebar, 
+          color=color.maroon, style=shape.flag, size=size.small)
+
+plotshape(rising_wedge, title="Rising Wedge", location=location.abovebar, 
+          color=color.orange, style=shape.triangledown, size=size.small)
+plotshape(falling_wedge, title="Falling Wedge", location=location.belowbar, 
+          color=color.green, style=shape.triangleup, size=size.small)
+
+plotshape(cup_pattern, title="Cup Pattern", location=location.belowbar, 
+          color=color.blue, style=shape.circle, size=size.small)
+
+plotshape(three_white_soldiers, title="Three White Soldiers", location=location.belowbar, 
+          color=color.white, style=shape.arrowup, size=size.small)
+plotshape(three_black_crows, title="Three Black Crows", location=location.abovebar, 
+          color=color.black, style=shape.arrowdown, size=size.small)
+
+plotshape(morning_star, title="Morning Star", location=location.belowbar, 
+          color=color.yellow, style=shape.cross, size=size.small)
+plotshape(evening_star, title="Evening Star", location=location.abovebar, 
+          color=color.purple, style=shape.cross, size=size.small)
+
+plotshape(elliott_bullish, title="Elliott Wave Bull", location=location.belowbar, 
+          color=color.aqua, style=shape.labelup, text="EW", textcolor=color.black, size=size.normal)
+plotshape(elliott_bearish, title="Elliott Wave Bear", location=location.abovebar, 
+          color=color.red, style=shape.labeldown, text="EW", textcolor=color.white, size=size.normal)
+
+plotshape(rectangle_breakout_bull, title="Rectangle Breakout Bull", location=location.belowbar, 
+          color=color.green, style=shape.arrowup, size=size.normal)
+plotshape(rectangle_breakout_bear, title="Rectangle Breakout Bear", location=location.abovebar, 
+          color=color.red, style=shape.arrowdown, size=size.normal)
+
+plotshape(gap_up, title="Gap Up", location=location.belowbar, 
+          color=color.lime, style=shape.arrowup, size=size.tiny)
+plotshape(gap_down, title="Gap Down", location=location.abovebar, 
+          color=color.red, style=shape.arrowdown, size=size.tiny)
 
 // Background coloring for strong signals
 bgcolor(buy_signal and bullish_score >= min_score + 3 ? color.new(color.green, 85) : na, title="Strong Buy Background")
@@ -275,12 +491,32 @@ alertcondition(double_bottom, title="Double Bottom Alert", message="Double Botto
 alertcondition(double_top, title="Double Top Alert", message="Double Top pattern detected")
 alertcondition(head_shoulders, title="Head & Shoulders Alert", message="Head & Shoulders pattern detected")
 
+// Golden Cross and Death Cross alerts
+alertcondition(golden_cross, title="Golden Cross Alert", message="Golden Cross detected - Strong bullish signal!")
+alertcondition(death_cross, title="Death Cross Alert", message="Death Cross detected - Strong bearish signal!")
+
+// Advanced pattern alerts
+alertcondition(inv_head_shoulders, title="Inverse H&S Alert", message="Inverse Head & Shoulders pattern detected")
+alertcondition(flag_pattern_bull, title="Bull Flag Alert", message="Bullish flag pattern detected")
+alertcondition(flag_pattern_bear, title="Bear Flag Alert", message="Bearish flag pattern detected")
+alertcondition(rising_wedge, title="Rising Wedge Alert", message="Rising wedge pattern detected - potential bearish reversal")
+alertcondition(falling_wedge, title="Falling Wedge Alert", message="Falling wedge pattern detected - potential bullish reversal")
+alertcondition(cup_pattern, title="Cup Pattern Alert", message="Cup pattern detected")
+alertcondition(three_white_soldiers, title="Three White Soldiers Alert", message="Three White Soldiers pattern detected")
+alertcondition(three_black_crows, title="Three Black Crows Alert", message="Three Black Crows pattern detected")
+alertcondition(morning_star, title="Morning Star Alert", message="Morning Star pattern detected")
+alertcondition(evening_star, title="Evening Star Alert", message="Evening Star pattern detected")
+alertcondition(elliott_bullish, title="Elliott Wave Bull Alert", message="Bullish Elliott Wave pattern detected")
+alertcondition(elliott_bearish, title="Elliott Wave Bear Alert", message="Bearish Elliott Wave pattern detected")
+alertcondition(rectangle_breakout_bull, title="Rectangle Breakout Bull Alert", message="Bullish rectangle breakout detected")
+alertcondition(rectangle_breakout_bear, title="Rectangle Breakout Bear Alert", message="Bearish rectangle breakout detected")
+
 // ============================================================================
 // TABLE WITH CURRENT SCORES
 // ============================================================================
 
 if barstate.islast
-    var table score_table = table.new(position.top_right, 3, 10, bgcolor=color.white, border_width=1)
+    var table score_table = table.new(position.top_right, 3, 15, bgcolor=color.white, border_width=1)
     
     table.cell(score_table, 0, 0, "Indicator", text_color=color.black, bgcolor=color.gray)
     table.cell(score_table, 1, 0, "Bullish", text_color=color.black, bgcolor=color.green)
@@ -314,8 +550,32 @@ if barstate.islast
     table.cell(score_table, 1, 7, str.tostring(math.round(cci, 2)), text_color=color.black)
     table.cell(score_table, 2, 7, cci > 100 ? "OB" : cci < -100 ? "OS" : "Neutral", text_color=color.black)
     
-    table.cell(score_table, 0, 8, "Signal", text_color=color.black)
+    table.cell(score_table, 0, 8, "MFI", text_color=color.black)
+    table.cell(score_table, 1, 8, str.tostring(math.round(mfi, 2)), text_color=color.black)
+    table.cell(score_table, 2, 8, mfi > 80 ? "OB" : mfi < 20 ? "OS" : "Neutral", text_color=color.black)
+    
+    table.cell(score_table, 0, 9, "PSAR", text_color=color.black)
+    table.cell(score_table, 1, 9, close > psar ? "↑" : "↓", text_color=color.black)
+    table.cell(score_table, 2, 9, str.tostring(math.round(psar, 2)), text_color=color.black)
+    
+    table.cell(score_table, 0, 10, "Ichimoku", text_color=color.black)
+    table.cell(score_table, 1, 10, close > senkou_a and close > senkou_b ? "↑" : "↓", text_color=color.black)
+    table.cell(score_table, 2, 10, tenkan > kijun ? "Bull" : "Bear", text_color=color.black)
+    
+    table.cell(score_table, 0, 11, "Golden Cross", text_color=color.black)
+    table.cell(score_table, 1, 11, golden_cross ? "YES" : "NO", text_color=golden_cross ? color.white : color.black, bgcolor=golden_cross ? color.gold : na)
+    table.cell(score_table, 2, 11, death_cross ? "YES" : "NO", text_color=death_cross ? color.white : color.black, bgcolor=death_cross ? color.red : na)
+    
+    table.cell(score_table, 0, 12, "Elliott Wave", text_color=color.black)
+    table.cell(score_table, 1, 12, elliott_bullish ? "BULL" : "NEUTRAL", text_color=elliott_bullish ? color.white : color.black, bgcolor=elliott_bullish ? color.green : na)
+    table.cell(score_table, 2, 12, elliott_bearish ? "BEAR" : "NEUTRAL", text_color=elliott_bearish ? color.white : color.black, bgcolor=elliott_bearish ? color.red : na)
+    
+    table.cell(score_table, 0, 13, "Fib Support", text_color=color.black)
+    table.cell(score_table, 1, 13, support_bounce ? "YES" : "NO", text_color=support_bounce ? color.white : color.black, bgcolor=support_bounce ? color.green : na)
+    table.cell(score_table, 2, 13, resistance_rejection ? "YES" : "NO", text_color=resistance_rejection ? color.white : color.black, bgcolor=resistance_rejection ? color.red : na)
+    
+    table.cell(score_table, 0, 14, "Signal", text_color=color.black)
     signal_text = buy_signal ? "BUY" : sell_signal ? "SELL" : "HOLD"
     signal_color = buy_signal ? color.green : sell_signal ? color.red : color.gray
-    table.cell(score_table, 1, 8, signal_text, text_color=color.white, bgcolor=signal_color)
-    table.cell(score_table, 2, 8, buy_signal ? str.tostring(bullish_score) : sell_signal ? str.tostring(bearish_score) : "0", text_color=color.black)
+    table.cell(score_table, 1, 14, signal_text, text_color=color.white, bgcolor=signal_color)
+    table.cell(score_table, 2, 14, buy_signal ? str.tostring(bullish_score) : sell_signal ? str.tostring(bearish_score) : "0", text_color=color.black)
