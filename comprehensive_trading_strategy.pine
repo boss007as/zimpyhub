@@ -1,4 +1,4 @@
-//@version=5
+//@version=6
 indicator("Comprehensive Trading Strategy - All Indicators & Patterns", shorttitle="CTS", overlay=true)
 
 // ============================================================================
@@ -99,8 +99,8 @@ pivot_high = ta.pivothigh(high, 5, 5)
 pivot_low = ta.pivotlow(low, 5, 5)
 
 // Double Top/Bottom Detection (simplified)
-double_top = pivot_high and pivot_high[10] and math.abs(pivot_high - pivot_high[10]) < (high - low) * 0.02
-double_bottom = pivot_low and pivot_low[10] and math.abs(pivot_low - pivot_low[10]) < (high - low) * 0.02
+double_top = not na(pivot_high) and not na(pivot_high[10]) and math.abs(pivot_high - pivot_high[10]) < (high - low) * 0.02
+double_bottom = not na(pivot_low) and not na(pivot_low[10]) and math.abs(pivot_low - pivot_low[10]) < (high - low) * 0.02
 
 // Triangle Pattern Detection (simplified)
 higher_lows = low > low[5] and low[5] > low[10]
@@ -108,7 +108,7 @@ lower_highs = high < high[5] and high[5] < high[10]
 triangle_pattern = higher_lows and lower_highs
 
 // Head and Shoulders (simplified detection)
-head_shoulders = pivot_high[10] and pivot_high[5] and pivot_high and 
+head_shoulders = not na(pivot_high[10]) and not na(pivot_high[5]) and not na(pivot_high) and 
                  pivot_high[5] > pivot_high[10] and pivot_high[5] > pivot_high and
                  math.abs(pivot_high[10] - pivot_high) < (high - low) * 0.05
 
@@ -221,10 +221,19 @@ fill(p1, p2, color=color.new(color.gray, 90), title="BB Fill")
 
 // Plot Buy/Sell Signals
 plotshape(buy_signal, title="Buy Signal", location=location.belowbar, color=color.green, 
-          style=shape.labelup, text="BUY\n" + str.tostring(bullish_score), textcolor=color.white, size=size.normal)
+          style=shape.labelup, text="BUY", textcolor=color.white, size=size.normal)
 
 plotshape(sell_signal, title="Sell Signal", location=location.abovebar, color=color.red, 
-          style=shape.labeldown, text="SELL\n" + str.tostring(bearish_score), textcolor=color.white, size=size.normal)
+          style=shape.labeldown, text="SELL", textcolor=color.white, size=size.normal)
+
+// Add labels with scores
+if buy_signal
+    label.new(bar_index, low - (high - low) * 0.1, "Score: " + str.tostring(bullish_score), 
+              color=color.green, textcolor=color.white, style=label.style_label_up, size=size.small)
+
+if sell_signal
+    label.new(bar_index, high + (high - low) * 0.1, "Score: " + str.tostring(bearish_score), 
+              color=color.red, textcolor=color.white, style=label.style_label_down, size=size.small)
 
 // Plot Chart Patterns
 plotshape(bullish_engulfing, title="Bullish Engulfing", location=location.belowbar, 
@@ -253,11 +262,18 @@ bgcolor(sell_signal and bearish_score >= min_score + 3 ? color.new(color.red, 85
 // ALERTS
 // ============================================================================
 
-alertcondition(buy_signal, title="Buy Alert", message="Strong BUY signal detected! Score: {{plot(\"bullish_score\")}}")
-alertcondition(sell_signal, title="Sell Alert", message="Strong SELL signal detected! Score: {{plot(\"bearish_score\")}}")
+alertcondition(buy_signal, title="Buy Alert", message="Strong BUY signal detected!")
+alertcondition(sell_signal, title="Sell Alert", message="Strong SELL signal detected!")
 
 alertcondition(bullish_engulfing, title="Bullish Engulfing Alert", message="Bullish Engulfing pattern detected")
 alertcondition(bearish_engulfing, title="Bearish Engulfing Alert", message="Bearish Engulfing pattern detected")
+
+// Additional pattern alerts
+alertcondition(hammer, title="Hammer Alert", message="Hammer candlestick pattern detected")
+alertcondition(shooting_star, title="Shooting Star Alert", message="Shooting Star candlestick pattern detected")
+alertcondition(double_bottom, title="Double Bottom Alert", message="Double Bottom pattern detected")
+alertcondition(double_top, title="Double Top Alert", message="Double Top pattern detected")
+alertcondition(head_shoulders, title="Head & Shoulders Alert", message="Head & Shoulders pattern detected")
 
 // ============================================================================
 // TABLE WITH CURRENT SCORES

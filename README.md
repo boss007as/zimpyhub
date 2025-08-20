@@ -1,6 +1,6 @@
-# Comprehensive Trading Strategy - Pine Script
+# Comprehensive Trading Strategy - Pine Script v6
 
-A powerful Pine Script indicator that combines multiple technical indicators and chart patterns to generate unified buy/sell signals with a sophisticated scoring system.
+A powerful Pine Script v6 indicator that combines multiple technical indicators and chart patterns to generate unified buy/sell signals with a sophisticated scoring system.
 
 ## Features
 
@@ -76,8 +76,9 @@ The script includes comprehensive input parameters organized into groups:
 #### On-Chart Display
 - **Moving Averages**: Color-coded lines (Blue/Red EMAs, Orange/Purple SMAs)
 - **Bollinger Bands**: Gray bands with semi-transparent fill
-- **Buy Signals**: Green up-arrow labels below bars with score
-- **Sell Signals**: Red down-arrow labels above bars with score
+- **Buy Signals**: Green up-arrow labels below bars
+- **Sell Signals**: Red down-arrow labels above bars
+- **Score Labels**: Separate labels showing the numerical scores for each signal
 - **Chart Patterns**: Various shapes indicating detected patterns
 - **Background Colors**: Light green/red for very strong signals
 
