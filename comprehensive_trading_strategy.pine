@@ -522,80 +522,52 @@ wave_color = current_wave == 1 ? color.green : current_wave == 2 ? color.orange 
              current_wave == 5 ? color.red : color.gray
 
 // ============================================================================
-// INDIVIDUAL ELLIOTT WAVE DETECTION PLOTTING
+// CONSOLIDATED ELLIOTT WAVE DISPLAY - Single Clean Label
 // ============================================================================
 
-// Plot each wave detection separately with specific characteristics
-if wave_1_active and not wave_1_active[1]  // Just entered Wave 1
-    label.new(bar_index, high * 1.02, "🌊 WAVE 1\nSTARTING", 
-     color=color.green, textcolor=color.white, style=label.style_label_down, size=size.large)
-
-if wave_2_active and not wave_2_active[1]  // Just entered Wave 2
-    label.new(bar_index, high * 1.02, "🌊 WAVE 2\nCORRECTION", 
-     color=color.orange, textcolor=color.white, style=label.style_label_down, size=size.large)
-
-if wave_3_active and not wave_3_active[1]  // Just entered Wave 3
-    label.new(bar_index, high * 1.02, "🌊 WAVE 3\nSTRONGEST!", 
-     color=color.blue, textcolor=color.white, style=label.style_label_down, size=size.large)
-
-if wave_4_active and not wave_4_active[1]  // Just entered Wave 4
-    label.new(bar_index, high * 1.02, "🌊 WAVE 4\nCORRECTION", 
-     color=color.yellow, textcolor=color.black, style=label.style_label_down, size=size.large)
-
-if wave_5_active and not wave_5_active[1]  // Just entered Wave 5
-    label.new(bar_index, high * 1.02, "🌊 WAVE 5\nFINAL PUSH", 
-     color=color.red, textcolor=color.white, style=label.style_label_down, size=size.large)
-
-// Show current wave number (continuous)
+// Only show ONE Elliott Wave label with comprehensive information
 if current_wave > 0
-    label.new(bar_index, high * 1.05, "WAVE " + str.tostring(current_wave), 
-     color=wave_color, textcolor=color.white, style=label.style_label_down, size=size.normal)
+    wave_status = current_wave == 1 ? "🌊 WAVE 1 - Early Entry" : 
+                 current_wave == 2 ? "🌊 WAVE 2 - Correction" : 
+                 current_wave == 3 ? "🌊 WAVE 3 - Strongest!" : 
+                 current_wave == 4 ? "🌊 WAVE 4 - Correction" : 
+                 current_wave == 5 ? "🌊 WAVE 5 - Final Push" : "🌊 NO WAVE"
+    
+    // Only show label when wave changes OR every 10 bars to avoid clutter
+    show_wave_label = (wave_1_active and not wave_1_active[1]) or 
+                     (wave_2_active and not wave_2_active[1]) or
+                     (wave_3_active and not wave_3_active[1]) or 
+                     (wave_4_active and not wave_4_active[1]) or
+                     (wave_5_active and not wave_5_active[1]) or
+                     (bar_index % 10 == 0)
+    
+    if show_wave_label
+        label.new(bar_index, high * 1.02, wave_status, 
+         color=wave_color, textcolor=color.white, style=label.style_label_down, size=size.normal)
 
 // Plot optimal entry price levels for buy waves (1, 3, 5)
 show_wave_1_entry = current_wave == 1 and wave_1_entry_price > 0
 show_wave_3_entry = current_wave == 3 and wave_3_entry_price > 0  
 show_wave_5_entry = current_wave == 5 and wave_5_entry_price > 0
 
+// ============================================================================
+// SIMPLIFIED PRICE LEVELS - Only Key Levels, No Labels
+// ============================================================================
+
+// Only show price lines for current wave without cluttering labels
+// The price information is already included in the main signal labels above
+
 if show_wave_1_entry
-    line.new(bar_index - 10, wave_1_entry_price, bar_index + 10, wave_1_entry_price, 
-     color=color.green, style=line.style_solid, width=2)
-    label.new(bar_index, wave_1_entry_price, "WAVE 1 BUY: " + str.tostring(wave_1_entry_price, "#.##"), 
-     color=color.green, textcolor=color.white, style=label.style_label_left, size=size.normal)
+    line.new(bar_index - 5, wave_1_entry_price, bar_index + 15, wave_1_entry_price, 
+     color=color.green, style=line.style_solid, width=1, extend=extend.right)
 
 if show_wave_3_entry
-    line.new(bar_index - 10, wave_3_entry_price, bar_index + 10, wave_3_entry_price, 
-     color=color.blue, style=line.style_solid, width=2)
-    label.new(bar_index, wave_3_entry_price, "WAVE 3 BUY: " + str.tostring(wave_3_entry_price, "#.##"), 
-     color=color.blue, textcolor=color.white, style=label.style_label_left, size=size.normal)
+    line.new(bar_index - 5, wave_3_entry_price, bar_index + 15, wave_3_entry_price, 
+     color=color.blue, style=line.style_solid, width=1, extend=extend.right)
 
 if show_wave_5_entry
-    line.new(bar_index - 10, wave_5_entry_price, bar_index + 10, wave_5_entry_price, 
-     color=color.red, style=line.style_solid, width=2)
-    label.new(bar_index, wave_5_entry_price, "WAVE 5 BUY: " + str.tostring(wave_5_entry_price, "#.##"), 
-     color=color.red, textcolor=color.white, style=label.style_label_left, size=size.normal)
-
-// Plot optimal exit price levels for correction waves (2, 4) and wave 5 top
-show_wave_2_exit = current_wave == 2 and wave_2_exit_price > 0
-show_wave_4_exit = current_wave == 4 and wave_4_exit_price > 0
-show_wave_5_exit = current_wave == 5 and wave_5_exit_price > 0
-
-if show_wave_2_exit
-    line.new(bar_index - 10, wave_2_exit_price, bar_index + 10, wave_2_exit_price, 
-     color=color.orange, style=line.style_dashed, width=2)
-    label.new(bar_index, wave_2_exit_price, "WAVE 2 SELL: " + str.tostring(wave_2_exit_price, "#.##"), 
-     color=color.orange, textcolor=color.white, style=label.style_label_left, size=size.normal)
-
-if show_wave_4_exit
-    line.new(bar_index - 10, wave_4_exit_price, bar_index + 10, wave_4_exit_price, 
-     color=color.yellow, style=line.style_dashed, width=2)
-    label.new(bar_index, wave_4_exit_price, "WAVE 4 SELL: " + str.tostring(wave_4_exit_price, "#.##"), 
-     color=color.yellow, textcolor=color.black, style=label.style_label_left, size=size.normal)
-
-if show_wave_5_exit
-    line.new(bar_index - 10, wave_5_exit_price, bar_index + 10, wave_5_exit_price, 
-     color=color.purple, style=line.style_dashed, width=2)
-    label.new(bar_index, wave_5_exit_price, "WAVE 5 EXIT: " + str.tostring(wave_5_exit_price, "#.##"), 
-     color=color.purple, textcolor=color.white, style=label.style_label_left, size=size.normal)
+    line.new(bar_index - 5, wave_5_entry_price, bar_index + 15, wave_5_entry_price, 
+     color=color.red, style=line.style_solid, width=1, extend=extend.right)
 
 // ============================================================================
 // REVERSAL ZONE VISUALIZATION
@@ -607,38 +579,29 @@ plot(major_support_1, color=support_zone ? color.green : color.new(color.green, 
 plot(major_resistance_1, color=resistance_zone ? color.red : color.new(color.red, 70), 
      style=plot.style_line, linewidth=1, title="Major Resistance")
 
-// REVERSAL SIGNALS - High Priority Alerts
-if bullish_reversal and reversal_strength_bull >= 2
-    label.new(bar_index, low * 0.995, 
-     "🔄 BULLISH REVERSAL\nStrength: " + str.tostring(reversal_strength_bull) + "/5\nTarget: " + str.tostring(bullish_reversal_target, "#.##"), 
-     color=color.lime, textcolor=color.black, style=label.style_label_up, size=size.large)
+// ============================================================================
+// CONSOLIDATED REVERSAL SIGNALS - Clean Single Labels
+// ============================================================================
 
-if bearish_reversal and reversal_strength_bear >= 2
-    label.new(bar_index, high * 1.005, 
-     "🔄 BEARISH REVERSAL\nStrength: " + str.tostring(reversal_strength_bear) + "/5\nTarget: " + str.tostring(bearish_reversal_target, "#.##"), 
-     color=color.orange, textcolor=color.black, style=label.style_label_down, size=size.large)
+// Only show the MOST IMPORTANT reversal signal to avoid clutter
+critical_bullish_signal = wave_5_reversal_imminent ? "🚨 WAVE 5 EXHAUSTION!" :
+                         (bullish_reversal and reversal_strength_bull >= 3) ? "🔄 STRONG REVERSAL" :
+                         wave_2_bounce_setup ? "🔄 WAVE 2 BOUNCE" :
+                         wave_4_bounce_setup ? "🔄 WAVE 4 BOUNCE" :
+                         bullish_divergence ? "⚠️ BULLISH DIV" : ""
 
-// Divergence Warning Signals
-if bearish_divergence
-    label.new(bar_index, high * 1.01, "⚠️ BEARISH DIV", 
-     color=color.yellow, textcolor=color.red, style=label.style_label_down, size=size.small)
+critical_bearish_signal = wave_5_reversal_imminent ? "🚨 WAVE 5 EXHAUSTION!" :
+                         (bearish_reversal and reversal_strength_bear >= 3) ? "🔄 STRONG REVERSAL" :
+                         bearish_divergence ? "⚠️ BEARISH DIV" : ""
 
-if bullish_divergence
-    label.new(bar_index, low * 0.99, "⚠️ BULLISH DIV", 
-     color=color.yellow, textcolor=color.green, style=label.style_label_up, size=size.small)
+// Show only ONE critical signal per direction to avoid overlap
+if critical_bearish_signal != "" and critical_bearish_signal != "⚠️ BULLISH DIV"
+    label.new(bar_index, high * 1.01, critical_bearish_signal, 
+     color=color.red, textcolor=color.white, style=label.style_label_down, size=size.normal)
 
-// Elliott Wave Specific Reversal Warnings
-if wave_5_reversal_imminent
-    label.new(bar_index, high * 1.02, "🚨 WAVE 5 EXHAUSTION\nREVERSAL IMMINENT!", 
-     color=color.red, textcolor=color.white, style=label.style_label_down, size=size.large)
-
-if wave_2_bounce_setup
-    label.new(bar_index, low * 0.98, "🔄 WAVE 2 BOUNCE\nREADY TO REVERSE UP", 
+if critical_bullish_signal != "" and critical_bullish_signal != "⚠️ BEARISH DIV" and critical_bullish_signal != "🚨 WAVE 5 EXHAUSTION!"
+    label.new(bar_index, low * 0.99, critical_bullish_signal, 
      color=color.green, textcolor=color.white, style=label.style_label_up, size=size.normal)
-
-if wave_4_bounce_setup
-    label.new(bar_index, low * 0.98, "🔄 WAVE 4 BOUNCE\nREADY TO REVERSE UP", 
-     color=color.blue, textcolor=color.white, style=label.style_label_up, size=size.normal)
 
 // ============================================================================
 // ULTRA-STRONG SIGNALS ONLY - Just 2 Plots
@@ -651,51 +614,41 @@ plotshape(buy_signal, title="🚀 ULTRA HIGH CONFIDENCE BUY", location=location.
 plotshape(sell_signal, title="🔻 ULTRA HIGH CONFIDENCE SELL", location=location.abovebar, color=color.red, 
           style=shape.labeldown, text="🔻 ULTRA SELL", textcolor=color.white, size=size.large)
 
-// Enhanced labels with comprehensive information + Elliott Wave specific guidance
+// ============================================================================
+// CONSOLIDATED ULTRA SIGNALS - Single Comprehensive Label
+// ============================================================================
+
 if buy_signal
-    // Determine best entry price based on current Elliott Wave
+    // All information in ONE clean label to avoid clutter
     best_entry_price = current_wave == 1 ? wave_1_entry_price : 
                       current_wave == 3 ? wave_3_entry_price : 
                       current_wave == 5 ? wave_5_entry_price : close
     
-    wave_guidance = current_wave == 1 ? "\n🚀 WAVE 1 - Early Entry!" : 
-                   current_wave == 3 ? "\n💎 WAVE 3 - Strongest Move!" : 
-                   current_wave == 5 ? "\n⚠️ WAVE 5 - Final Push!" : 
-                   "\n📊 Multi-Indicator Signal"
+    // Compact signal information
+    signal_summary = "🚀 ULTRA BUY | Score:" + str.tostring(bullish_score) + 
+                    "\n" + (current_wave > 0 ? "Wave " + str.tostring(current_wave) : "Multi-Signal") +
+                    " | Entry:" + str.tostring(best_entry_price, "#.##") +
+                    "\n" + (golden_cross ? "GC✓" : "") + (bullish_reversal ? " REV✓" : "") + 
+                    " RSI:" + str.tostring(math.round(rsi, 1))
     
-    reversal_context = bullish_reversal ? "\n🔄 REVERSAL ZONE!" : 
-                      bullish_divergence ? "\n⚠️ BULLISH DIV" : ""
-    
-    signal_details = "ULTRA BUY - SCORE: " + str.tostring(bullish_score) + 
-     wave_guidance + reversal_context +
-     "\n💰 ENTRY: " + str.tostring(best_entry_price, "#.##") +
-     "\n📈 GC:" + (golden_cross ? "✓" : "✗") + " RSI:" + str.tostring(math.round(rsi, 1))
-    
-    label.new(bar_index, low, signal_details, 
-     color=color.green, textcolor=color.white, style=label.style_label_up, size=size.normal, yloc=yloc.belowbar)
+    label.new(bar_index, low, signal_summary, 
+     color=color.green, textcolor=color.white, style=label.style_label_up, size=size.large, yloc=yloc.belowbar)
 
 if sell_signal
-    // Determine best exit price based on current Elliott Wave  
+    // All information in ONE clean label to avoid clutter
     best_exit_price = current_wave == 2 ? wave_2_exit_price :
                      current_wave == 4 ? wave_4_exit_price :
                      current_wave == 5 ? wave_5_exit_price : close
     
-    wave_guidance = current_wave == 2 ? "\n📉 WAVE 2 - Correction!" : 
-                   current_wave == 4 ? "\n📉 WAVE 4 - Correction!" : 
-                   current_wave == 5 ? "\n🔚 WAVE 5 - Cycle End!" : 
-                   "\n📊 Multi-Indicator Signal"
+    // Compact signal information
+    signal_summary = "🔻 ULTRA SELL | Score:" + str.tostring(bearish_score) + 
+                    "\n" + (current_wave > 0 ? "Wave " + str.tostring(current_wave) : "Multi-Signal") +
+                    " | Exit:" + str.tostring(best_exit_price, "#.##") +
+                    "\n" + (death_cross ? "DC✓" : "") + (bearish_reversal ? " REV✓" : "") + 
+                    " RSI:" + str.tostring(math.round(rsi, 1))
     
-    reversal_context = bearish_reversal ? "\n🔄 REVERSAL ZONE!" : 
-                      bearish_divergence ? "\n⚠️ BEARISH DIV" : 
-                      wave_5_reversal_imminent ? "\n🚨 EXHAUSTION!" : ""
-    
-    signal_details = "ULTRA SELL - SCORE: " + str.tostring(bearish_score) + 
-     wave_guidance + reversal_context +
-     "\n💰 EXIT: " + str.tostring(best_exit_price, "#.##") +
-     "\n📉 DC:" + (death_cross ? "✓" : "✗") + " RSI:" + str.tostring(math.round(rsi, 1))
-    
-    label.new(bar_index, high, signal_details, 
-     color=color.red, textcolor=color.white, style=label.style_label_down, size=size.normal, yloc=yloc.abovebar)
+    label.new(bar_index, high, signal_summary, 
+     color=color.red, textcolor=color.white, style=label.style_label_down, size=size.large, yloc=yloc.abovebar)
 
 // Background coloring for strong signals
 bgcolor(buy_signal and bullish_score >= min_score + 3 ? color.new(color.green, 85) : na, title="Strong Buy Background")
