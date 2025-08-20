@@ -209,6 +209,86 @@ wave_5_exit_price = close * 1.05  // 5% above current for wave 5 completion
 elliott_bullish = elliott_buy_wave_1 or elliott_buy_wave_3 or elliott_buy_wave_5
 elliott_bearish = elliott_sell_wave_2 or elliott_sell_wave_4 or (current_wave == 5 and rsi > 80)
 
+// ============================================================================
+// REVERSAL DETECTION SYSTEM
+// ============================================================================
+
+// 1. DIVERGENCE DETECTION
+// Price making higher highs but indicators making lower highs (bearish divergence)
+price_higher_high = high > ta.highest(high, 20)[1]
+rsi_lower_high = rsi < ta.highest(rsi, 20)[1] and rsi > 50
+macd_lower_high = macd_line < ta.highest(macd_line, 20)[1] and macd_line > 0
+bearish_divergence = price_higher_high and (rsi_lower_high or macd_lower_high)
+
+// Price making lower lows but indicators making higher lows (bullish divergence)
+price_lower_low = low < ta.lowest(low, 20)[1]
+rsi_higher_low = rsi > ta.lowest(rsi, 20)[1] and rsi < 50
+macd_higher_low = macd_line > ta.lowest(macd_line, 20)[1] and macd_line < 0
+bullish_divergence = price_lower_low and (rsi_higher_low or macd_higher_low)
+
+// 2. ELLIOTT WAVE REVERSAL SIGNALS
+// Wave 5 exhaustion - multiple warning signs
+wave_5_exhaustion = current_wave == 5 and rsi > 75 and volume < ta.sma(volume, 20) * 0.8
+wave_5_reversal_imminent = wave_5_exhaustion and bearish_divergence
+
+// Wave 2/4 correction completion - bounce signals
+wave_2_bounce_setup = current_wave == 2 and rsi < 35 and close <= fib_382
+wave_4_bounce_setup = current_wave == 4 and rsi < 40 and close <= fib_500
+
+// 3. SUPPORT/RESISTANCE REVERSAL ZONES
+// Major support levels
+major_support_1 = ta.lowest(low, 50)
+major_support_2 = ta.lowest(low, 100) 
+support_zone = close <= major_support_1 * 1.02 or close <= major_support_2 * 1.02
+
+// Major resistance levels
+major_resistance_1 = ta.highest(high, 50)
+major_resistance_2 = ta.highest(high, 100)
+resistance_zone = close >= major_resistance_1 * 0.98 or close >= major_resistance_2 * 0.98
+
+// 4. VOLUME REVERSAL SIGNALS
+volume_spike = volume > ta.sma(volume, 20) * 2.0
+volume_exhaustion = volume < ta.sma(volume, 20) * 0.5
+
+// 5. MULTI-TIMEFRAME REVERSAL CONFIRMATION
+// Overbought/Oversold across multiple indicators
+extreme_overbought = rsi > 80 and stoch_k > 90 and cci > 150 and williams_r > -10
+extreme_oversold = rsi < 20 and stoch_k < 10 and cci < -150 and williams_r < -90
+
+// 6. CANDLESTICK REVERSAL PATTERNS (Enhanced)
+// Doji at key levels
+doji_reversal = doji and (support_zone or resistance_zone)
+
+// Hammer at support
+hammer_reversal = hammer and support_zone and rsi < 40
+
+// Shooting star at resistance  
+shooting_star_reversal = shooting_star and resistance_zone and rsi > 60
+
+// 7. COMPREHENSIVE REVERSAL SIGNALS
+// BULLISH REVERSAL (Upward turn likely)
+bullish_reversal = (bullish_divergence or wave_2_bounce_setup or wave_4_bounce_setup or 
+                   (extreme_oversold and support_zone) or 
+                   (hammer_reversal and volume_spike) or
+                   (doji_reversal and support_zone and rsi < 35))
+
+// BEARISH REVERSAL (Downward turn likely)
+bearish_reversal = (bearish_divergence or wave_5_reversal_imminent or 
+                   (extreme_overbought and resistance_zone) or
+                   (shooting_star_reversal and volume_spike) or
+                   (doji_reversal and resistance_zone and rsi > 65))
+
+// REVERSAL STRENGTH (1-5 scale)
+reversal_strength_bull = (bullish_divergence ? 1 : 0) + (wave_2_bounce_setup or wave_4_bounce_setup ? 1 : 0) + 
+                        (extreme_oversold ? 1 : 0) + (support_zone ? 1 : 0) + (volume_spike and hammer ? 1 : 0)
+
+reversal_strength_bear = (bearish_divergence ? 1 : 0) + (wave_5_reversal_imminent ? 2 : 0) + 
+                        (extreme_overbought ? 1 : 0) + (resistance_zone ? 1 : 0) + (volume_spike and shooting_star ? 1 : 0)
+
+// REVERSAL PRICE TARGETS
+bullish_reversal_target = support_zone ? close * 1.05 : close * 1.08  // 5-8% bounce expected
+bearish_reversal_target = resistance_zone ? close * 0.95 : close * 0.92  // 5-8% drop expected
+
 // Rectangle Pattern
 rectangle_top = math.abs(high - high[5]) < (high - low) * 0.02 and 
  math.abs(high[5] - high[10]) < (high - low) * 0.02
@@ -482,6 +562,49 @@ if show_wave_5_exit
      color=color.purple, textcolor=color.white, style=label.style_label_left, size=size.normal)
 
 // ============================================================================
+// REVERSAL ZONE VISUALIZATION
+// ============================================================================
+
+// Plot Support and Resistance Zones
+plot(major_support_1, color=support_zone ? color.green : color.new(color.green, 70), 
+     style=plot.style_line, linewidth=1, title="Major Support")
+plot(major_resistance_1, color=resistance_zone ? color.red : color.new(color.red, 70), 
+     style=plot.style_line, linewidth=1, title="Major Resistance")
+
+// REVERSAL SIGNALS - High Priority Alerts
+if bullish_reversal and reversal_strength_bull >= 2
+    label.new(bar_index, low * 0.995, 
+     "🔄 BULLISH REVERSAL\nStrength: " + str.tostring(reversal_strength_bull) + "/5\nTarget: " + str.tostring(bullish_reversal_target, "#.##"), 
+     color=color.lime, textcolor=color.black, style=label.style_label_up, size=size.large)
+
+if bearish_reversal and reversal_strength_bear >= 2
+    label.new(bar_index, high * 1.005, 
+     "🔄 BEARISH REVERSAL\nStrength: " + str.tostring(reversal_strength_bear) + "/5\nTarget: " + str.tostring(bearish_reversal_target, "#.##"), 
+     color=color.orange, textcolor=color.black, style=label.style_label_down, size=size.large)
+
+// Divergence Warning Signals
+if bearish_divergence
+    label.new(bar_index, high * 1.01, "⚠️ BEARISH DIV", 
+     color=color.yellow, textcolor=color.red, style=label.style_label_down, size=size.small)
+
+if bullish_divergence
+    label.new(bar_index, low * 0.99, "⚠️ BULLISH DIV", 
+     color=color.yellow, textcolor=color.green, style=label.style_label_up, size=size.small)
+
+// Elliott Wave Specific Reversal Warnings
+if wave_5_reversal_imminent
+    label.new(bar_index, high * 1.02, "🚨 WAVE 5 EXHAUSTION\nREVERSAL IMMINENT!", 
+     color=color.red, textcolor=color.white, style=label.style_label_down, size=size.large)
+
+if wave_2_bounce_setup
+    label.new(bar_index, low * 0.98, "🔄 WAVE 2 BOUNCE\nREADY TO REVERSE UP", 
+     color=color.green, textcolor=color.white, style=label.style_label_up, size=size.normal)
+
+if wave_4_bounce_setup
+    label.new(bar_index, low * 0.98, "🔄 WAVE 4 BOUNCE\nREADY TO REVERSE UP", 
+     color=color.blue, textcolor=color.white, style=label.style_label_up, size=size.normal)
+
+// ============================================================================
 // ULTRA-STRONG SIGNALS ONLY - Just 2 Plots
 // ============================================================================
 
@@ -504,8 +627,11 @@ if buy_signal
                    current_wave == 5 ? "\n⚠️ WAVE 5 - Final Push!" : 
                    "\n📊 Multi-Indicator Signal"
     
+    reversal_context = bullish_reversal ? "\n🔄 REVERSAL ZONE!" : 
+                      bullish_divergence ? "\n⚠️ BULLISH DIV" : ""
+    
     signal_details = "ULTRA BUY - SCORE: " + str.tostring(bullish_score) + 
-     wave_guidance +
+     wave_guidance + reversal_context +
      "\n💰 ENTRY: " + str.tostring(best_entry_price, "#.##") +
      "\n📈 GC:" + (golden_cross ? "✓" : "✗") + " RSI:" + str.tostring(math.round(rsi, 1))
     
@@ -523,8 +649,12 @@ if sell_signal
                    current_wave == 5 ? "\n🔚 WAVE 5 - Cycle End!" : 
                    "\n📊 Multi-Indicator Signal"
     
+    reversal_context = bearish_reversal ? "\n🔄 REVERSAL ZONE!" : 
+                      bearish_divergence ? "\n⚠️ BEARISH DIV" : 
+                      wave_5_reversal_imminent ? "\n🚨 EXHAUSTION!" : ""
+    
     signal_details = "ULTRA SELL - SCORE: " + str.tostring(bearish_score) + 
-     wave_guidance +
+     wave_guidance + reversal_context +
      "\n💰 EXIT: " + str.tostring(best_exit_price, "#.##") +
      "\n📉 DC:" + (death_cross ? "✓" : "✗") + " RSI:" + str.tostring(math.round(rsi, 1))
     
@@ -555,6 +685,30 @@ alertcondition(head_shoulders, title="Head & Shoulders Alert", message="Head & S
 // Golden Cross and Death Cross alerts
 alertcondition(golden_cross, title="Golden Cross Alert", message="Golden Cross detected - Strong bullish signal!")
 alertcondition(death_cross, title="Death Cross Alert", message="Death Cross detected - Strong bearish signal!")
+
+// REVERSAL DETECTION ALERTS - Critical for Timing
+alertcondition(bullish_reversal and reversal_strength_bull >= 3, title="🔄 STRONG BULLISH REVERSAL", 
+ message="🔄 STRONG BULLISH REVERSAL! Strength: " + str.tostring(reversal_strength_bull) + "/5 - Target: " + str.tostring(bullish_reversal_target, "#.##"))
+
+alertcondition(bearish_reversal and reversal_strength_bear >= 3, title="🔄 STRONG BEARISH REVERSAL", 
+ message="🔄 STRONG BEARISH REVERSAL! Strength: " + str.tostring(reversal_strength_bear) + "/5 - Target: " + str.tostring(bearish_reversal_target, "#.##"))
+
+// Divergence Alerts - Early Warning System  
+alertcondition(bullish_divergence, title="⚠️ BULLISH DIVERGENCE", 
+ message="⚠️ BULLISH DIVERGENCE detected! Price making lower lows but indicators showing strength - Reversal likely!")
+
+alertcondition(bearish_divergence, title="⚠️ BEARISH DIVERGENCE", 
+ message="⚠️ BEARISH DIVERGENCE detected! Price making higher highs but indicators weakening - Reversal likely!")
+
+// Elliott Wave Reversal Alerts
+alertcondition(wave_5_reversal_imminent, title="🚨 WAVE 5 EXHAUSTION", 
+ message="🚨 WAVE 5 EXHAUSTION! Cycle ending - Major reversal imminent! Exit all longs!")
+
+alertcondition(wave_2_bounce_setup, title="🔄 WAVE 2 BOUNCE READY", 
+ message="🔄 WAVE 2 correction complete - Ready for bounce! Entry opportunity!")
+
+alertcondition(wave_4_bounce_setup, title="🔄 WAVE 4 BOUNCE READY", 
+ message="🔄 WAVE 4 correction complete - Ready for Wave 5! Final entry opportunity!")
 
 // Advanced pattern alerts
 alertcondition(inv_head_shoulders, title="Inverse H&S Alert", message="Inverse Head & Shoulders pattern detected")
