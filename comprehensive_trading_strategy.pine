@@ -159,7 +159,7 @@ falling_wedge = low < low[5] and low[5] < low[10] and high < high[5] and high[5]
  (high - low) < (high[10] - low[10])
 
 // Cup and Handle Pattern
-cup_pattern = pivot_low[20] and pivot_low[10] and pivot_low and 
+cup_pattern = not na(pivot_low[20]) and not na(pivot_low[10]) and not na(pivot_low) and 
  pivot_low[10] < pivot_low[20] and pivot_low[10] < pivot_low and
  math.abs(pivot_low[20] - pivot_low) < (high - low) * 0.1
 
@@ -170,8 +170,8 @@ wave_3 = close > close[5] and close[5] > close[10] and close > close[15]
 wave_4 = close < close[5] and close[5] > close[10] and close > close[15]
 wave_5 = close > close[5] and close[5] > close[10] and close > close[20]
 
-elliott_bullish = wave_1[20] and wave_2[15] and wave_3[10] and wave_4[5] and wave_5
-elliott_bearish = not wave_1[20] and not wave_2[15] and not wave_3[10] and not wave_4[5] and not wave_5
+elliott_bullish = wave_1[20] == true and wave_2[15] == true and wave_3[10] == true and wave_4[5] == true and wave_5 == true
+elliott_bearish = wave_1[20] == false and wave_2[15] == false and wave_3[10] == false and wave_4[5] == false and wave_5 == false
 
 // Rectangle Pattern
 rectangle_top = math.abs(high - high[5]) < (high - low) * 0.02 and 
@@ -181,8 +181,8 @@ rectangle_bottom = math.abs(low - low[5]) < (high - low) * 0.02 and
 rectangle_pattern = rectangle_top and rectangle_bottom
 
 // Breakout from Rectangle
-rectangle_breakout_bull = rectangle_pattern[1] and close > high[1]
-rectangle_breakout_bear = rectangle_pattern[1] and close < low[1]
+rectangle_breakout_bull = rectangle_pattern[1] == true and close > high[1]
+rectangle_breakout_bear = rectangle_pattern[1] == true and close < low[1]
 
 // Three White Soldiers / Three Black Crows
 three_white_soldiers = close > open and close[1] > open[1] and close[2] > open[2] and
@@ -405,9 +405,9 @@ if sell_signal
 
 // Plot Chart Patterns
 plotshape(bullish_engulfing, title="Bullish Engulfing", location=location.belowbar, 
-          color=color.lime, style=shape.triangleup, size=size.small)
+          color=color.green, style=shape.triangleup, size=size.small)
 plotshape(bearish_engulfing, title="Bearish Engulfing", location=location.abovebar, 
-          color=color.maroon, style=shape.triangledown, size=size.small)
+          color=color.red, style=shape.triangledown, size=size.small)
 
 plotshape(hammer, title="Hammer", location=location.belowbar, 
           color=color.yellow, style=shape.diamond, size=size.tiny)
@@ -415,27 +415,27 @@ plotshape(shooting_star, title="Shooting Star", location=location.abovebar,
           color=color.yellow, style=shape.diamond, size=size.tiny)
 
 plotshape(double_bottom, title="Double Bottom", location=location.belowbar, 
-          color=color.aqua, style=shape.square, size=size.small)
+          color=color.blue, style=shape.square, size=size.small)
 plotshape(double_top, title="Double Top", location=location.abovebar, 
-          color=color.fuchsia, style=shape.square, size=size.small)
+          color=color.purple, style=shape.square, size=size.small)
 
 plotshape(head_shoulders, title="Head & Shoulders", location=location.abovebar, 
-          color=color.navy, style=shape.xcross, size=size.normal)
+          color=color.red, style=shape.xcross, size=size.normal)
 
 // Plot Golden Cross and Death Cross
 plotshape(golden_cross, title="Golden Cross", location=location.belowbar, 
-          color=color.gold, style=shape.labelup, text="GC", textcolor=color.black, size=size.large)
+          color=color.yellow, style=shape.labelup, text="GC", textcolor=color.black, size=size.large)
 plotshape(death_cross, title="Death Cross", location=location.abovebar, 
           color=color.black, style=shape.labeldown, text="DC", textcolor=color.white, size=size.large)
 
 // Plot Advanced Patterns
 plotshape(inv_head_shoulders, title="Inverse H&S", location=location.belowbar, 
-          color=color.teal, style=shape.xcross, size=size.normal)
+          color=color.green, style=shape.xcross, size=size.normal)
 
 plotshape(flag_pattern_bull, title="Bull Flag", location=location.belowbar, 
-          color=color.lime, style=shape.flag, size=size.small)
+          color=color.green, style=shape.flag, size=size.small)
 plotshape(flag_pattern_bear, title="Bear Flag", location=location.abovebar, 
-          color=color.maroon, style=shape.flag, size=size.small)
+          color=color.red, style=shape.flag, size=size.small)
 
 plotshape(rising_wedge, title="Rising Wedge", location=location.abovebar, 
           color=color.orange, style=shape.triangledown, size=size.small)
@@ -456,7 +456,7 @@ plotshape(evening_star, title="Evening Star", location=location.abovebar,
           color=color.purple, style=shape.cross, size=size.small)
 
 plotshape(elliott_bullish, title="Elliott Wave Bull", location=location.belowbar, 
-          color=color.aqua, style=shape.labelup, text="EW", textcolor=color.black, size=size.normal)
+          color=color.blue, style=shape.labelup, text="EW", textcolor=color.white, size=size.normal)
 plotshape(elliott_bearish, title="Elliott Wave Bear", location=location.abovebar, 
           color=color.red, style=shape.labeldown, text="EW", textcolor=color.white, size=size.normal)
 
@@ -466,7 +466,7 @@ plotshape(rectangle_breakout_bear, title="Rectangle Breakout Bear", location=loc
           color=color.red, style=shape.arrowdown, size=size.normal)
 
 plotshape(gap_up, title="Gap Up", location=location.belowbar, 
-          color=color.lime, style=shape.arrowup, size=size.tiny)
+          color=color.green, style=shape.arrowup, size=size.tiny)
 plotshape(gap_down, title="Gap Down", location=location.abovebar, 
           color=color.red, style=shape.arrowdown, size=size.tiny)
 
@@ -563,7 +563,7 @@ if barstate.islast
     table.cell(score_table, 2, 10, tenkan > kijun ? "Bull" : "Bear", text_color=color.black)
     
     table.cell(score_table, 0, 11, "Golden Cross", text_color=color.black)
-    table.cell(score_table, 1, 11, golden_cross ? "YES" : "NO", text_color=golden_cross ? color.white : color.black, bgcolor=golden_cross ? color.gold : na)
+    table.cell(score_table, 1, 11, golden_cross ? "YES" : "NO", text_color=golden_cross ? color.white : color.black, bgcolor=golden_cross ? color.yellow : na)
     table.cell(score_table, 2, 11, death_cross ? "YES" : "NO", text_color=death_cross ? color.white : color.black, bgcolor=death_cross ? color.red : na)
     
     table.cell(score_table, 0, 12, "Elliott Wave", text_color=color.black)
