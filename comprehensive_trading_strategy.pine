@@ -7,31 +7,31 @@ strategy("Comprehensive Trading Strategy with Backtest", shorttitle="CTS-BT", ov
 // INPUT PARAMETERS
 // ============================================================================
 
-// Moving Averages
-ema_fast_length = input.int(12, title="EMA Fast Length", group="Moving Averages")
-ema_slow_length = input.int(26, title="EMA Slow Length", group="Moving Averages")
-sma_length = input.int(50, title="SMA Length", group="Moving Averages")
-sma_long_length = input.int(200, title="SMA Long Length", group="Moving Averages")
+// Moving Averages - Optimized for Day Trading
+ema_fast_length = input.int(8, title="EMA Fast Length", tooltip="Day Trading: 5-10 periods. Lower = More responsive to price changes", group="Moving Averages", minval=3, maxval=21)
+ema_slow_length = input.int(21, title="EMA Slow Length", tooltip="Day Trading: 15-25 periods. Standard is 21 for intraday", group="Moving Averages", minval=10, maxval=50)
+sma_length = input.int(20, title="SMA Length", tooltip="Day Trading: 20 periods (1 hour on 3min chart). Shorter for faster signals", group="Moving Averages", minval=10, maxval=50)
+sma_long_length = input.int(50, title="SMA Long Length", tooltip="Day Trading: 50 periods for trend filter. Don't use 200 for intraday", group="Moving Averages", minval=30, maxval=100)
 
-// RSI
-rsi_length = input.int(14, title="RSI Length", group="RSI")
-rsi_overbought = input.int(70, title="RSI Overbought", group="RSI")
-rsi_oversold = input.int(30, title="RSI Oversold", group="RSI")
+// RSI - Day Trading Optimized
+rsi_length = input.int(9, title="RSI Length", tooltip="Day Trading: 9-14 periods. 9 is more sensitive for intraday", group="RSI", minval=7, maxval=21)
+rsi_overbought = input.int(75, title="RSI Overbought", tooltip="Day Trading: 75-80. Higher threshold reduces false signals", group="RSI", minval=70, maxval=85)
+rsi_oversold = input.int(25, title="RSI Oversold", tooltip="Day Trading: 20-25. Lower threshold for better entries", group="RSI", minval=15, maxval=30)
 
-// MACD
-macd_fast_length = input.int(12, title="MACD Fast Length", group="MACD")
-macd_slow_length = input.int(26, title="MACD Slow Length", group="MACD")
-macd_signal_length = input.int(9, title="MACD Signal Length", group="MACD")
+// MACD - Day Trading Optimized
+macd_fast_length = input.int(8, title="MACD Fast Length", tooltip="Day Trading: 8-12. Faster for intraday momentum", group="MACD", minval=5, maxval=15)
+macd_slow_length = input.int(21, title="MACD Slow Length", tooltip="Day Trading: 21-26. Standard for intraday", group="MACD", minval=15, maxval=35)
+macd_signal_length = input.int(7, title="MACD Signal Length", tooltip="Day Trading: 7-9. Faster signal line for quicker entries", group="MACD", minval=5, maxval=12)
 
-// Bollinger Bands
-bb_length = input.int(20, title="BB Length", group="Bollinger Bands")
-bb_mult = input.float(2.0, title="BB Multiplier", group="Bollinger Bands")
+// Bollinger Bands - Day Trading Optimized
+bb_length = input.int(15, title="BB Length", tooltip="Day Trading: 15-20 periods. Shorter for more responsive bands", group="Bollinger Bands", minval=10, maxval=25)
+bb_mult = input.float(2.0, title="BB Multiplier", tooltip="Day Trading: 2.0-2.2. Standard deviation for volatility", group="Bollinger Bands", minval=1.5, maxval=2.5)
 
-// Stochastic
-stoch_k_length = input.int(14, title="Stochastic %K Length", group="Stochastic")
-stoch_d_length = input.int(3, title="Stochastic %D Length", group="Stochastic")
-stoch_overbought = input.int(80, title="Stochastic Overbought", group="Stochastic")
-stoch_oversold = input.int(20, title="Stochastic Oversold", group="Stochastic")
+// Stochastic - Day Trading Optimized
+stoch_k_length = input.int(10, title="Stochastic %K Length", tooltip="Day Trading: 10-14. Shorter for faster momentum detection", group="Stochastic", minval=8, maxval=21)
+stoch_d_length = input.int(3, title="Stochastic %D Length", tooltip="Standard smoothing period", group="Stochastic", minval=2, maxval=5)
+stoch_overbought = input.int(85, title="Stochastic Overbought", tooltip="Day Trading: 85. Higher to reduce false signals", group="Stochastic", minval=75, maxval=90)
+stoch_oversold = input.int(15, title="Stochastic Oversold", tooltip="Day Trading: 15. Lower for better entry timing", group="Stochastic", minval=10, maxval=25)
 
 // ADX
 adx_length = input.int(14, title="ADX Length", group="ADX")
@@ -50,12 +50,21 @@ cci_length = input.int(20, title="CCI Length", group="CCI")
 min_score = input.int(8, title="Minimum Score for Signal", tooltip="Lower = More signals (5-7), Higher = Fewer signals (12-15). Default 8 is balanced.", group="Signal Settings", minval=5, maxval=20)
 signal_strength_multiplier = input.float(1.2, title="Signal Strength Multiplier", tooltip="Higher = Stricter signals. 1.0=Relaxed, 1.5=Strict, 2.0=Very Strict", group="Signal Settings", minval=1.0, maxval=2.0)
 
-// Backtesting Settings
-use_stop_loss = input.bool(true, title="Use Stop Loss", tooltip="Recommended: ON. Protects capital from large losses.", group="Backtesting")
-stop_loss_percent = input.float(5.0, title="Stop Loss %", tooltip="Lower = Tighter stops (3-4%), Higher = Looser stops (8-10%). Default 5% is balanced.", group="Backtesting", minval=1.0, maxval=20.0)
-use_take_profit = input.bool(true, title="Use Take Profit", tooltip="Recommended: ON. Locks in profits automatically.", group="Backtesting")
-take_profit_percent = input.float(10.0, title="Take Profit %", tooltip="Lower = Quick profits (5-8%), Higher = Bigger profits (15-25%). Default 10% is balanced.", group="Backtesting", minval=2.0, maxval=50.0)
-position_size = input.float(10.0, title="Position Size % of Equity", tooltip="Lower = Conservative (5-10%), Higher = Aggressive (20-50%). Default 10% is safe.", group="Backtesting", minval=1.0, maxval=100.0)
+// Day Trading Specific Settings
+use_time_filter = input.bool(true, title="Use Trading Hours Filter", tooltip="Recommended: ON. Avoids low volume periods", group="Day Trading")
+start_hour = input.int(9, title="Start Hour", tooltip="Market open hour (9 for NYSE)", group="Day Trading", minval=0, maxval=23)
+end_hour = input.int(16, title="End Hour", tooltip="Market close hour (16 for NYSE)", group="Day Trading", minval=0, maxval=23)
+avoid_lunch_hour = input.bool(true, title="Avoid Lunch Hour (12-13)", tooltip="Recommended: ON. Low volume period", group="Day Trading")
+
+// Day Trading Risk Management
+use_stop_loss = input.bool(true, title="Use Stop Loss", tooltip="CRITICAL for day trading. Protects from intraday reversals.", group="Risk Management")
+stop_loss_percent = input.float(2.0, title="Stop Loss %", tooltip="Day Trading: 1-3%. Tighter stops for intraday volatility.", group="Risk Management", minval=0.5, maxval=5.0)
+use_take_profit = input.bool(true, title="Use Take Profit", tooltip="Day Trading: Lock profits quickly before reversals.", group="Risk Management")
+take_profit_percent = input.float(4.0, title="Take Profit %", tooltip="Day Trading: 2-6%. Quick profits better than big swings.", group="Risk Management", minval=1.0, maxval=10.0)
+position_size = input.float(5.0, title="Position Size % of Equity", tooltip="Day Trading: 2-10%. Lower risk per trade for multiple daily trades.", group="Risk Management", minval=1.0, maxval=25.0)
+
+// Day Trading Signal Settings
+min_volume_multiplier = input.float(1.5, title="Minimum Volume Multiplier", tooltip="Day Trading: 1.5-2.0. Ensures adequate liquidity", group="Day Trading", minval=1.0, maxval=3.0)
 
 // ============================================================================
 // INDICATOR CALCULATIONS
@@ -181,12 +190,21 @@ cup_pattern = not na(pivot_low[20]) and not na(pivot_low[10]) and not na(pivot_l
 // PROPER ELLIOTT WAVE ANALYSIS - Sequential Wave Structure
 // ============================================================================
 
-// Input for wave detection sensitivity
-wave_lookback = input.int(50, title="Elliott Wave Lookback Period", group="Elliott Wave", minval=20, maxval=200)
+// Elliott Wave - Day Trading Optimized
+wave_lookback = input.int(20, title="Elliott Wave Lookback Period", tooltip="Day Trading: 15-30 periods. Shorter for intraday wave detection", group="Elliott Wave", minval=10, maxval=50)
 
-// Find significant pivot points for wave analysis
-pivot_high_strength = 10
-pivot_low_strength = 10
+// Day Trading Time Filters
+current_hour = hour(time)
+in_trading_hours = use_time_filter ? (current_hour >= start_hour and current_hour < end_hour) : true
+not_lunch_time = avoid_lunch_hour ? not (current_hour >= 12 and current_hour < 13) : true
+time_filter_ok = in_trading_hours and not_lunch_time
+
+// Volume filter for day trading
+volume_ok = volume > volume_sma_20 * min_volume_multiplier
+
+// Find significant pivot points for wave analysis - Day Trading Optimized
+pivot_high_strength = 5  // Shorter for intraday waves
+pivot_low_strength = 5   // Shorter for intraday waves
 
 // Get recent significant highs and lows
 recent_high = ta.pivothigh(high, pivot_high_strength, pivot_high_strength)
@@ -537,28 +555,32 @@ required_difference = min_score * signal_strength_multiplier
 // HIGH CONFIDENCE SIGNALS - Balanced for Practical Trading
 // Require strong confirmations but not impossible standards
 
-// Strong buy: Multiple confirmations required
+// Strong buy: Multiple confirmations required + Day Trading Filters
 strong_buy_conditions = bullish_score >= min_score and 
    score_difference >= required_difference and 
    bullish_score > bearish_score and
+   time_filter_ok and volume_ok and
    (golden_cross or (current_wave == 1 or current_wave == 3) or bullish_reversal or 
    (rsi < rsi_oversold and macd_line > signal_line))
 
-// Strong sell: Multiple confirmations required  
+// Strong sell: Multiple confirmations required + Day Trading Filters  
 strong_sell_conditions = bearish_score >= min_score and 
    score_difference >= required_difference and 
    bearish_score > bullish_score and
+   time_filter_ok and volume_ok and
    (death_cross or current_wave == 5 or bearish_reversal or 
    (rsi > rsi_overbought and macd_line < signal_line))
 
 // Final signals - High confidence but achievable
 buy_signal = strong_buy_conditions
 
-// Fallback signals for when main system is too strict
+// Fallback signals for when main system is too strict - Day Trading Optimized
 simple_buy = bullish_score >= (min_score - 2) and bullish_score > bearish_score and 
+   time_filter_ok and volume_ok and
    (golden_cross or (rsi < 35 and macd_line > signal_line) or (current_wave == 1 or current_wave == 3))
 
 simple_sell = bearish_score >= (min_score - 2) and bearish_score > bullish_score and 
+   time_filter_ok and volume_ok and
    (death_cross or (rsi > 65 and macd_line < signal_line) or current_wave == 5)
 
 sell_signal = strong_sell_conditions
@@ -976,28 +998,39 @@ if true
     else
         table.cell(trading_dashboard, 1, 4, "WAIT: " + str.tostring(close, "#.##"), text_color=color.black, bgcolor=color.gray)
     
-    // Key Indicators Summary
-    table.cell(trading_dashboard, 0, 5, "📈 Key Indicators", text_color=color.black)
-    key_indicators = "RSI:" + str.tostring(math.round(rsi, 0)) + 
-       (golden_cross ? " GC✓" : death_cross ? " DC✓" : "") +
-       (bullish_reversal ? " REV↑" : bearish_reversal ? " REV↓" : "")
-    table.cell(trading_dashboard, 1, 5, key_indicators, text_color=color.black)
+    // Day Trading Status
+    table.cell(trading_dashboard, 0, 5, "⏰ Day Trading", text_color=color.black)
+    dt_status = not time_filter_ok ? "Outside Hours" : 
+               not volume_ok ? "Low Volume" : 
+               "Active Session"
+    dt_color = not time_filter_ok ? color.red : 
+              not volume_ok ? color.orange : color.green
+    table.cell(trading_dashboard, 1, 5, dt_status, text_color=color.white, bgcolor=dt_color)
     
-    // Optimization Guidance
-    table.cell(trading_dashboard, 0, 6, "⚙️ Optimization", text_color=color.black)
-    optimization_tip = total_trades == 0 ? "Lower Min Score" : 
-       win_rate < 40 ? "Tighter Stops" : 
-       win_rate > 80 ? "Higher Min Score" : 
-       avg_profit_per_trade < 2 ? "Higher Take Profit" : "Good Settings"
-    opt_color = total_trades == 0 ? color.orange : 
-       win_rate < 40 ? color.red : 
-       win_rate > 80 ? color.blue : 
-       avg_profit_per_trade < 2 ? color.orange : color.green
-    table.cell(trading_dashboard, 1, 6, optimization_tip, text_color=color.white, bgcolor=opt_color)
+    // Day Trading Optimization
+    table.cell(trading_dashboard, 0, 6, "⚙️ Day Trading Tips", text_color=color.black)
+    dt_optimization = total_trades == 0 and not time_filter_ok ? "Enable Time Filter" :
+       total_trades == 0 and not volume_ok ? "Lower Volume Filter" :
+       total_trades == 0 ? "Lower Min Score (6-7)" : 
+       win_rate < 50 ? "Tighter Stops (1-2%)" : 
+       avg_profit_per_trade < 1 ? "Quick TP (2-3%)" : 
+       total_trades > 20 ? "Higher Min Score" : "Good for Day Trading"
+    dt_opt_color = total_trades == 0 ? color.orange : 
+       win_rate < 50 ? color.red : 
+       avg_profit_per_trade < 1 ? color.orange : 
+       total_trades > 20 ? color.blue : color.green
+    table.cell(trading_dashboard, 1, 6, dt_optimization, text_color=color.white, bgcolor=dt_opt_color)
     
-    // Configuration Help
-    table.cell(trading_dashboard, 0, 7, "💡 Config Help", text_color=color.black)
-    config_help = bullish_score >= (min_score - 1) and bearish_score >= (min_score - 1) ? "Scores close - Adjust multiplier" :
-       bullish_score < (min_score - 3) and bearish_score < (min_score - 3) ? "All scores low - Lower min score" :
-       math.abs(bullish_score - bearish_score) < 3 ? "No clear direction - Wait" : "Good separation"
-    table.cell(trading_dashboard, 1, 7, config_help, text_color=color.black)
+    // Day Trading Configuration Help
+    table.cell(trading_dashboard, 0, 7, "💡 Intraday Guide", text_color=color.black)
+    intraday_help = not time_filter_ok ? "Outside trading hours" :
+       not volume_ok ? "Wait for volume spike" :
+       current_wave == 0 ? "No clear Elliott Wave" :
+       current_wave == 1 or current_wave == 3 ? "Perfect buy wave!" :
+       current_wave == 2 or current_wave == 4 ? "Correction - wait" :
+       current_wave == 5 ? "Final wave - be careful" : "Monitor closely"
+    help_color = not time_filter_ok ? color.red :
+       not volume_ok ? color.orange :
+       current_wave == 1 or current_wave == 3 ? color.green :
+       current_wave == 5 ? color.orange : color.blue
+    table.cell(trading_dashboard, 1, 7, intraday_help, text_color=color.white, bgcolor=help_color)
