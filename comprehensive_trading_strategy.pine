@@ -109,7 +109,7 @@ senkou_b = (ta.highest(high, 52) + ta.lowest(low, 52)) / 2
 obv = ta.obv
 
 // Money Flow Index (MFI)
-mfi = ta.mfi(hlc3, volume, 14)
+mfi = ta.mfi(close, 14)
 
 // ============================================================================
 // CHART PATTERN DETECTION
@@ -138,30 +138,30 @@ triangle_pattern = higher_lows and lower_highs
 
 // Head and Shoulders (simplified detection)
 head_shoulders = not na(pivot_high[10]) and not na(pivot_high[5]) and not na(pivot_high) and 
-                 pivot_high[5] > pivot_high[10] and pivot_high[5] > pivot_high and
-                 math.abs(pivot_high[10] - pivot_high) < (high - low) * 0.05
+ pivot_high[5] > pivot_high[10] and pivot_high[5] > pivot_high and
+ math.abs(pivot_high[10] - pivot_high) < (high - low) * 0.05
 
 // Inverse Head and Shoulders
 inv_head_shoulders = not na(pivot_low[10]) and not na(pivot_low[5]) and not na(pivot_low) and 
-                     pivot_low[5] < pivot_low[10] and pivot_low[5] < pivot_low and
-                     math.abs(pivot_low[10] - pivot_low) < (high - low) * 0.05
+ pivot_low[5] < pivot_low[10] and pivot_low[5] < pivot_low and
+ math.abs(pivot_low[10] - pivot_low) < (high - low) * 0.05
 
 // Flag and Pennant Patterns
 flag_pattern_bull = close > close[10] and close[10] > close[20] and 
-                    (high[1] - low[1]) < (high[10] - low[10]) * 0.5
+ (high[1] - low[1]) < (high[10] - low[10]) * 0.5
 flag_pattern_bear = close < close[10] and close[10] < close[20] and 
-                    (high[1] - low[1]) < (high[10] - low[10]) * 0.5
+ (high[1] - low[1]) < (high[10] - low[10]) * 0.5
 
 // Wedge Patterns
 rising_wedge = low > low[5] and low[5] > low[10] and high > high[5] and high[5] > high[10] and
-               (high - low) < (high[10] - low[10])
+ (high - low) < (high[10] - low[10])
 falling_wedge = low < low[5] and low[5] < low[10] and high < high[5] and high[5] < high[10] and
-                (high - low) < (high[10] - low[10])
+ (high - low) < (high[10] - low[10])
 
 // Cup and Handle Pattern
 cup_pattern = pivot_low[20] and pivot_low[10] and pivot_low and 
-              pivot_low[10] < pivot_low[20] and pivot_low[10] < pivot_low and
-              math.abs(pivot_low[20] - pivot_low) < (high - low) * 0.1
+ pivot_low[10] < pivot_low[20] and pivot_low[10] < pivot_low and
+ math.abs(pivot_low[20] - pivot_low) < (high - low) * 0.1
 
 // Elliott Wave Inspired Patterns (simplified 5-wave structure)
 wave_1 = close > close[5] and close[5] > close[10]
@@ -175,9 +175,9 @@ elliott_bearish = not wave_1[20] and not wave_2[15] and not wave_3[10] and not w
 
 // Rectangle Pattern
 rectangle_top = math.abs(high - high[5]) < (high - low) * 0.02 and 
-                math.abs(high[5] - high[10]) < (high - low) * 0.02
+ math.abs(high[5] - high[10]) < (high - low) * 0.02
 rectangle_bottom = math.abs(low - low[5]) < (high - low) * 0.02 and 
-                   math.abs(low[5] - low[10]) < (high - low) * 0.02
+ math.abs(low[5] - low[10]) < (high - low) * 0.02
 rectangle_pattern = rectangle_top and rectangle_bottom
 
 // Breakout from Rectangle
@@ -186,19 +186,19 @@ rectangle_breakout_bear = rectangle_pattern[1] and close < low[1]
 
 // Three White Soldiers / Three Black Crows
 three_white_soldiers = close > open and close[1] > open[1] and close[2] > open[2] and
-                       close > close[1] and close[1] > close[2] and
-                       open < close[1] and open[1] < close[2]
+ close > close[1] and close[1] > close[2] and
+ open < close[1] and open[1] < close[2]
 
 three_black_crows = close < open and close[1] < open[1] and close[2] < open[2] and
-                    close < close[1] and close[1] < close[2] and
-                    open > close[1] and open[1] > close[2]
+ close < close[1] and close[1] < close[2] and
+ open > close[1] and open[1] > close[2]
 
 // Morning Star / Evening Star
 morning_star = close[2] < open[2] and math.abs(close[1] - open[1]) < (high[1] - low[1]) * 0.3 and
-               close > open and close > (close[2] + open[2]) / 2
+ close > open and close > (close[2] + open[2]) / 2
 
 evening_star = close[2] > open[2] and math.abs(close[1] - open[1]) < (high[1] - low[1]) * 0.3 and
-               close < open and close < (close[2] + open[2]) / 2
+ close < open and close < (close[2] + open[2]) / 2
 
 // Gap Patterns
 gap_up = low > high[1]
@@ -397,11 +397,11 @@ plotshape(sell_signal, title="Sell Signal", location=location.abovebar, color=co
 // Add labels with scores - using relative positioning for better scaling
 if buy_signal
     label.new(bar_index, low, "Score: " + str.tostring(bullish_score), 
-              color=color.green, textcolor=color.white, style=label.style_label_up, size=size.small, yloc=yloc.belowbar)
+     color=color.green, textcolor=color.white, style=label.style_label_up, size=size.small, yloc=yloc.belowbar)
 
 if sell_signal
     label.new(bar_index, high, "Score: " + str.tostring(bearish_score), 
-              color=color.red, textcolor=color.white, style=label.style_label_down, size=size.small, yloc=yloc.abovebar)
+     color=color.red, textcolor=color.white, style=label.style_label_down, size=size.small, yloc=yloc.abovebar)
 
 // Plot Chart Patterns
 plotshape(bullish_engulfing, title="Bullish Engulfing", location=location.belowbar, 
