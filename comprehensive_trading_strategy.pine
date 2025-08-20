@@ -1,7 +1,7 @@
 //@version=6
 strategy("Comprehensive Trading Strategy with Backtest", shorttitle="CTS-BT", overlay=true, 
-         default_qty_type=strategy.percent_of_equity, default_qty_value=10, 
-         commission_type=strategy.commission.percent, commission_value=0.1)
+   default_qty_type=strategy.percent_of_equity, default_qty_value=10, 
+   commission_type=strategy.commission.percent, commission_value=0.1)
 
 // ============================================================================
 // INPUT PARAMETERS
@@ -958,7 +958,7 @@ if true
     table.cell(trading_dashboard, 0, 3, "🌊 Elliott Wave", text_color=color.black)
     wave_info = current_wave > 0 ? "Wave " + str.tostring(current_wave) : "No Wave"
     wave_color = current_wave == 1 or current_wave == 3 or current_wave == 5 ? color.green : 
-                current_wave == 2 or current_wave == 4 ? color.orange : color.gray
+       current_wave == 2 or current_wave == 4 ? color.orange : color.gray
     table.cell(trading_dashboard, 1, 3, wave_info, text_color=color.white, bgcolor=wave_color)
     
     // Entry/Exit Price
@@ -990,14 +990,14 @@ if true
        win_rate > 80 ? "Higher Min Score" : 
        avg_profit_per_trade < 2 ? "Higher Take Profit" : "Good Settings"
     opt_color = total_trades == 0 ? color.orange : 
-               win_rate < 40 ? color.red : 
-               win_rate > 80 ? color.blue : 
-               avg_profit_per_trade < 2 ? color.orange : color.green
+       win_rate < 40 ? color.red : 
+       win_rate > 80 ? color.blue : 
+       avg_profit_per_trade < 2 ? color.orange : color.green
     table.cell(trading_dashboard, 1, 6, optimization_tip, text_color=color.white, bgcolor=opt_color)
     
     // Configuration Help
     table.cell(trading_dashboard, 0, 7, "💡 Config Help", text_color=color.black)
     config_help = bullish_score >= (min_score - 1) and bearish_score >= (min_score - 1) ? "Scores close - Adjust multiplier" :
-                 bullish_score < (min_score - 3) and bearish_score < (min_score - 3) ? "All scores low - Lower min score" :
-                 math.abs(bullish_score - bearish_score) < 3 ? "No clear direction - Wait" : "Good separation"
+       bullish_score < (min_score - 3) and bearish_score < (min_score - 3) ? "All scores low - Lower min score" :
+       math.abs(bullish_score - bearish_score) < 3 ? "No clear direction - Wait" : "Good separation"
     table.cell(trading_dashboard, 1, 7, config_help, text_color=color.black)
