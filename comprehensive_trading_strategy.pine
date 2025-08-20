@@ -169,27 +169,75 @@ cup_pattern = not na(pivot_low[20]) and not na(pivot_low[10]) and not na(pivot_l
    math.abs(pivot_low[20] - pivot_low) < (high - low) * 0.1
 
 // ============================================================================
-// ENHANCED ELLIOTT WAVE ANALYSIS - Current Wave Identification
+// PROPER ELLIOTT WAVE ANALYSIS - Sequential Wave Structure
 // ============================================================================
 
-// Define wave characteristics more precisely
-wave_1_start = ta.lowest(low, 20)  // Wave 1 starts from recent low
-wave_1_active = close > wave_1_start * 1.05 and close < wave_1_start * 1.25  // 5-25% up from low
+// Input for wave detection sensitivity
+wave_lookback = input.int(50, title="Elliott Wave Lookback Period", group="Elliott Wave", minval=20, maxval=200)
 
-wave_2_correction = close < close[5] and close > wave_1_start * 1.02  // Correction but above wave 1 start
-wave_2_active = wave_2_correction and close > wave_1_start * 1.03
+// Find significant pivot points for wave analysis
+pivot_high_strength = 10
+pivot_low_strength = 10
 
-wave_3_impulse = close > ta.highest(high, 10)[1] and volume > volume_sma_20 * 1.2  // Breaking highs with volume
-wave_3_active = wave_3_impulse and close > close[10] * 1.1  // Strong upward move
+// Get recent significant highs and lows
+recent_high = ta.pivothigh(high, pivot_high_strength, pivot_high_strength)
+recent_low = ta.pivotlow(low, pivot_low_strength, pivot_low_strength)
 
-wave_4_correction = close < close[3] and close > close[15]  // Shallow correction
-wave_4_active = wave_4_correction and close > close_sma_50  // Above major trend
+// Track wave progression using proper Elliott Wave rules
+var int wave_state = 0
+var float wave_1_start_price = na
+var float wave_1_end_price = na
+var float wave_2_end_price = na
+var float wave_3_end_price = na
+var float wave_4_end_price = na
+var int wave_start_bar = 0
 
-wave_5_final = close > ta.highest(high, 5)[1] and rsi > 70  // Final push with overbought RSI
-wave_5_active = wave_5_final and volume < volume_sma_20  // Often with declining volume
+// Elliott Wave State Machine - Proper Sequential Detection
+if not na(recent_low) and wave_state == 0
+    // Potential Wave 1 start
+    wave_1_start_price := recent_low
+    wave_start_bar := bar_index
+    wave_state := 1
 
-// Current Wave Identification
-current_wave = wave_1_active ? 1 : wave_2_active ? 2 : wave_3_active ? 3 : wave_4_active ? 4 : wave_5_active ? 5 : 0
+if wave_state == 1 and not na(recent_high) and recent_high > wave_1_start_price * 1.05
+    // Wave 1 completion - significant move up from start
+    wave_1_end_price := recent_high
+    wave_state := 2
+
+if wave_state == 2 and not na(recent_low) and recent_low < wave_1_end_price and recent_low > wave_1_start_price
+    // Wave 2 completion - correction that doesn't exceed Wave 1 start
+    wave_2_end_price := recent_low
+    wave_state := 3
+
+if wave_state == 3 and not na(recent_high) and recent_high > wave_1_end_price * 1.1
+    // Wave 3 completion - strongest move, exceeds Wave 1 high significantly
+    wave_3_end_price := recent_high
+    wave_state := 4
+
+if wave_state == 4 and not na(recent_low) and recent_low < wave_3_end_price and recent_low > wave_2_end_price
+    // Wave 4 completion - correction that doesn't overlap Wave 1
+    wave_4_end_price := recent_low
+    wave_state := 5
+
+if wave_state == 5 and not na(recent_high) and recent_high > wave_4_end_price
+    // Wave 5 in progress or completion
+    if rsi > 70 and volume < volume_sma_20 * 0.8
+        // Wave 5 showing exhaustion signs - cycle may be complete
+        wave_state := 0  // Reset for new cycle
+    
+// Current wave determination based on state and price action
+current_wave = wave_state == 1 and close > wave_1_start_price ? 1 :
+               wave_state == 2 and close < wave_1_end_price ? 2 :
+               wave_state == 3 and close > wave_2_end_price ? 3 :
+               wave_state == 4 and close < wave_3_end_price ? 4 :
+               wave_state == 5 and close > wave_4_end_price ? 5 : 0
+
+// Wave activity flags for compatibility
+wave_1_active = current_wave == 1
+wave_2_active = current_wave == 2
+wave_3_active = current_wave == 3
+wave_4_active = current_wave == 4
+wave_5_active = current_wave == 5
 
 // Elliott Wave Buy/Sell Signals
 elliott_buy_wave_1 = current_wave == 1 and not wave_1_active[1]  // Just entered wave 1
@@ -199,15 +247,16 @@ elliott_buy_wave_5 = current_wave == 5 and not wave_5_active[1]  // Just entered
 elliott_sell_wave_2 = current_wave == 2 and not wave_2_active[1]  // Just entered wave 2 correction
 elliott_sell_wave_4 = current_wave == 4 and not wave_4_active[1]  // Just entered wave 4 correction
 
-// Optimal Entry Prices
-wave_1_entry_price = wave_1_start * 1.03  // 3% above the low
-wave_3_entry_price = ta.highest(high, 10)[1] * 1.01  // Just above breakout
-wave_5_entry_price = ta.highest(high, 5)[1] * 1.005  // Minimal premium on final wave
+// Optimal Entry Prices based on proper wave structure
+wave_1_entry_price = not na(wave_1_start_price) ? wave_1_start_price * 1.02 : close  // 2% above wave start
+wave_3_entry_price = not na(wave_2_end_price) ? wave_2_end_price * 1.01 : close  // Just above wave 2 end
+wave_5_entry_price = not na(wave_4_end_price) ? wave_4_end_price * 1.005 : close  // Minimal premium above wave 4 end
 
-// Optimal Exit Prices  
-wave_2_exit_price = close * 0.95  // 5% below current for wave 2 correction
-wave_4_exit_price = close * 0.97  // 3% below current for wave 4 correction
-wave_5_exit_price = close * 1.05  // 5% above current for wave 5 completion
+// Optimal Exit Prices based on wave structure
+wave_2_exit_price = not na(wave_1_end_price) ? wave_1_end_price * 0.618 : close * 0.95  // 61.8% retracement target
+wave_4_exit_price = not na(wave_3_end_price) ? wave_3_end_price * 0.382 : close * 0.97  // 38.2% retracement target  
+wave_5_exit_price = not na(wave_3_end_price) and not na(wave_1_end_price) ? 
+   wave_3_end_price + (wave_3_end_price - wave_1_end_price) * 0.618 : close * 1.05  // Fibonacci extension target
 
 // Legacy variables for compatibility
 elliott_bullish = elliott_buy_wave_1 or elliott_buy_wave_3 or elliott_buy_wave_5
@@ -525,7 +574,11 @@ wave_color = current_wave == 1 ? color.green : current_wave == 2 ? color.orange 
 // CONSOLIDATED ELLIOTT WAVE DISPLAY - Single Clean Label
 // ============================================================================
 
-// Only show ONE Elliott Wave label with comprehensive information
+// ============================================================================
+// ENHANCED ELLIOTT WAVE VISUALIZATION
+// ============================================================================
+
+// Show Elliott Wave structure with proper validation
 if current_wave > 0
     wave_status = current_wave == 1 ? "🌊 WAVE 1 - Early Entry" : 
                  current_wave == 2 ? "🌊 WAVE 2 - Correction" : 
@@ -533,17 +586,31 @@ if current_wave > 0
                  current_wave == 4 ? "🌊 WAVE 4 - Correction" : 
                  current_wave == 5 ? "🌊 WAVE 5 - Final Push" : "🌊 NO WAVE"
     
-    // Only show label when wave changes OR every 10 bars to avoid clutter
-    show_wave_label = (wave_1_active and not wave_1_active[1]) or 
-                     (wave_2_active and not wave_2_active[1]) or
-                     (wave_3_active and not wave_3_active[1]) or 
-                     (wave_4_active and not wave_4_active[1]) or
-                     (wave_5_active and not wave_5_active[1]) or
-                     (bar_index % 10 == 0)
+    // Add wave validation info
+    wave_validation = wave_state >= 3 ? " ✓VALID" : " ?FORMING"
+    
+    // Show label when wave changes or for important confirmations
+    show_wave_label = (current_wave != current_wave[1]) or 
+       (wave_state >= 3 and wave_state != wave_state[1]) or
+       (bar_index % 20 == 0 and current_wave > 0)
     
     if show_wave_label
-        label.new(bar_index, high * 1.02, wave_status, 
+        label.new(bar_index, high * 1.02, wave_status + wave_validation, 
          color=wave_color, textcolor=color.white, style=label.style_label_down, size=size.normal)
+
+// Draw wave structure lines for confirmed waves
+if not na(wave_1_start_price) and not na(wave_1_end_price) and wave_state >= 2
+    line.new(wave_start_bar, wave_1_start_price, wave_start_bar + 20, wave_1_end_price, 
+     color=color.green, style=line.style_solid, width=1)
+    
+// Show wave pivot points for major waves
+if not na(recent_high) and wave_state >= 2
+    label.new(bar_index, recent_high, "H", color=color.blue, textcolor=color.white, 
+     style=label.style_label_down, size=size.tiny)
+     
+if not na(recent_low) and wave_state >= 1
+    label.new(bar_index, recent_low, "L", color=color.red, textcolor=color.white, 
+     style=label.style_label_up, size=size.tiny)
 
 // Plot optimal entry price levels for buy waves (1, 3, 5)
 show_wave_1_entry = current_wave == 1 and wave_1_entry_price > 0
