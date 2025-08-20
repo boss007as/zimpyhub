@@ -1,0 +1,155 @@
+{
+  "model_settings": {
+    "default_symbol": "BTC-USD",
+    "default_timeframe": "1h",
+    "default_period": "1y",
+    "lookback_window": 60,
+    "confidence_threshold": 0.8,
+    "min_confluence_score": 0.6
+  },
+  
+  "risk_management": {
+    "min_confidence": 0.8,
+    "min_confluence": 0.6,
+    "max_position_size": 0.1,
+    "stop_loss_atr_multiplier": 2.0,
+    "take_profit_atr_multiplier": 3.0,
+    "max_drawdown_limit": 0.15
+  },
+  
+  "trading_parameters": {
+    "strong_buy_threshold": 0.6,
+    "strong_sell_threshold": 0.4,
+    "volume_confirmation_multiplier": 1.5,
+    "trend_strength_threshold": 25,
+    "volatility_high_percentile": 0.8,
+    "volatility_low_percentile": 0.2
+  },
+  
+  "technical_indicators": {
+    "trend_indicators": {
+      "enabled": true,
+      "sma_periods": [5, 10, 20, 50, 100, 200],
+      "ema_periods": [12, 26, 50],
+      "macd_settings": {
+        "fast_period": 12,
+        "slow_period": 26,
+        "signal_period": 9
+      },
+      "adx_period": 14
+    },
+    
+    "momentum_indicators": {
+      "enabled": true,
+      "rsi_periods": [9, 14, 21, 30],
+      "stochastic_k_period": 14,
+      "stochastic_d_period": 3,
+      "williams_r_period": 14,
+      "roc_periods": [10, 20, 30],
+      "cci_period": 14
+    },
+    
+    "volatility_indicators": {
+      "enabled": true,
+      "bollinger_period": 20,
+      "bollinger_std": 2,
+      "atr_period": 14,
+      "keltner_period": 20
+    },
+    
+    "volume_indicators": {
+      "enabled": true,
+      "obv_enabled": true,
+      "mfi_period": 14,
+      "ad_enabled": true,
+      "vwap_enabled": true
+    }
+  },
+  
+  "model_architecture": {
+    "lstm_layers": [
+      {"units": 128, "return_sequences": true, "dropout": 0.2},
+      {"units": 64, "return_sequences": true, "dropout": 0.2},
+      {"units": 32, "return_sequences": false, "dropout": 0.2}
+    ],
+    "dense_layers": [
+      {"units": 50, "activation": "relu", "dropout": 0.3},
+      {"units": 25, "activation": "relu", "dropout": 0.2}
+    ],
+    "output_activation": "sigmoid",
+    "optimizer": {
+      "type": "Adam",
+      "learning_rate": 0.001,
+      "beta_1": 0.9,
+      "beta_2": 0.999
+    }
+  },
+  
+  "training_settings": {
+    "epochs": 100,
+    "batch_size": 32,
+    "validation_split": 0.2,
+    "cross_validation_folds": 5,
+    "early_stopping_patience": 15,
+    "reduce_lr_patience": 8,
+    "reduce_lr_factor": 0.5,
+    "min_learning_rate": 1e-6
+  },
+  
+  "backtesting": {
+    "initial_capital": 10000,
+    "test_split": 0.3,
+    "commission_rate": 0.001,
+    "slippage_rate": 0.0005,
+    "min_trade_interval_hours": 1
+  },
+  
+  "ui_settings": {
+    "default_theme": "light",
+    "chart_height": 600,
+    "max_chart_points": 1000,
+    "refresh_interval_seconds": 60,
+    "show_advanced_metrics": true,
+    "enable_sound_alerts": false
+  },
+  
+  "data_sources": {
+    "primary": "yfinance",
+    "backup": "alpha_vantage",
+    "crypto_symbols": [
+      "BTC-USD", "ETH-USD", "ADA-USD", "DOT-USD", 
+      "LINK-USD", "LTC-USD", "XRP-USD", "BCH-USD",
+      "BNB-USD", "SOL-USD", "MATIC-USD", "AVAX-USD"
+    ],
+    "timeframes": ["1m", "5m", "15m", "1h", "4h", "1d"],
+    "data_periods": ["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y"]
+  },
+  
+  "alerts": {
+    "enabled": false,
+    "email_notifications": false,
+    "webhook_url": "",
+    "alert_conditions": {
+      "high_confidence_signal": true,
+      "stop_loss_hit": true,
+      "take_profit_hit": true,
+      "unusual_volume": true
+    }
+  },
+  
+  "logging": {
+    "level": "INFO",
+    "log_to_file": true,
+    "log_file": "logs/crypto_predictor.log",
+    "max_log_size_mb": 10,
+    "backup_count": 5
+  },
+  
+  "performance": {
+    "enable_gpu": true,
+    "memory_growth": true,
+    "parallel_processing": true,
+    "cache_indicators": true,
+    "batch_prediction": false
+  }
+}
