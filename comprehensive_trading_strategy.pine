@@ -47,15 +47,15 @@ williams_length = input.int(14, title="Williams %R Length", group="Williams %R")
 cci_length = input.int(20, title="CCI Length", group="CCI")
 
 // Scoring System - Balanced threshold for practical signals
-min_score = input.int(8, title="Minimum Score for Signal", group="Signal Settings", minval=5, maxval=20)
-signal_strength_multiplier = input.float(1.2, title="Signal Strength Multiplier", group="Signal Settings", minval=1.0, maxval=2.0)
+min_score = input.int(8, title="Minimum Score for Signal", tooltip="Lower = More signals (5-7), Higher = Fewer signals (12-15). Default 8 is balanced.", group="Signal Settings", minval=5, maxval=20)
+signal_strength_multiplier = input.float(1.2, title="Signal Strength Multiplier", tooltip="Higher = Stricter signals. 1.0=Relaxed, 1.5=Strict, 2.0=Very Strict", group="Signal Settings", minval=1.0, maxval=2.0)
 
 // Backtesting Settings
-use_stop_loss = input.bool(true, title="Use Stop Loss", group="Backtesting")
-stop_loss_percent = input.float(5.0, title="Stop Loss %", group="Backtesting", minval=1.0, maxval=20.0)
-use_take_profit = input.bool(true, title="Use Take Profit", group="Backtesting")
-take_profit_percent = input.float(10.0, title="Take Profit %", group="Backtesting", minval=2.0, maxval=50.0)
-position_size = input.float(10.0, title="Position Size % of Equity", group="Backtesting", minval=1.0, maxval=100.0)
+use_stop_loss = input.bool(true, title="Use Stop Loss", tooltip="Recommended: ON. Protects capital from large losses.", group="Backtesting")
+stop_loss_percent = input.float(5.0, title="Stop Loss %", tooltip="Lower = Tighter stops (3-4%), Higher = Looser stops (8-10%). Default 5% is balanced.", group="Backtesting", minval=1.0, maxval=20.0)
+use_take_profit = input.bool(true, title="Use Take Profit", tooltip="Recommended: ON. Locks in profits automatically.", group="Backtesting")
+take_profit_percent = input.float(10.0, title="Take Profit %", tooltip="Lower = Quick profits (5-8%), Higher = Bigger profits (15-25%). Default 10% is balanced.", group="Backtesting", minval=2.0, maxval=50.0)
+position_size = input.float(10.0, title="Position Size % of Equity", tooltip="Lower = Conservative (5-10%), Higher = Aggressive (20-50%). Default 10% is safe.", group="Backtesting", minval=1.0, maxval=100.0)
 
 // ============================================================================
 // INDICATOR CALCULATIONS
@@ -889,148 +889,115 @@ alertcondition(rectangle_breakout_bear, title="Rectangle Breakout Bear Alert", m
 // TABLE WITH CURRENT SCORES
 // ============================================================================
 
-// Create tables globally
-var table perf_table = table.new(position.top_left, 2, 8, bgcolor=color.white, border_width=1)
-var table score_table = table.new(position.top_right, 3, 18, bgcolor=color.white, border_width=1)
+// ============================================================================
+// CLEAN PERFORMANCE DASHBOARD
+// ============================================================================
 
-// Update tables on every bar
-if true  // Always update for real-time display
-    
-    table.cell(perf_table, 0, 0, "BACKTEST RESULTS", text_color=color.white, bgcolor=color.blue)
-    table.cell(perf_table, 1, 0, "VALUE", text_color=color.white, bgcolor=color.blue)
-    
-    table.cell(perf_table, 0, 1, "Total Trades", text_color=color.black)
-    table.cell(perf_table, 1, 1, str.tostring(total_trades), text_color=color.black)
-    
-    table.cell(perf_table, 0, 2, "Winning Trades", text_color=color.black)
-    table.cell(perf_table, 1, 2, str.tostring(winning_trades), text_color=color.white, bgcolor=color.green)
-    
-    table.cell(perf_table, 0, 3, "Losing Trades", text_color=color.black)
-    table.cell(perf_table, 1, 3, str.tostring(losing_trades), text_color=color.white, bgcolor=color.red)
-    
-    table.cell(perf_table, 0, 4, "Win Rate %", text_color=color.black)
-    win_rate_color = win_rate >= 60 ? color.green : win_rate >= 40 ? color.orange : color.red
-    table.cell(perf_table, 1, 4, str.tostring(win_rate, "#.#") + "%", text_color=color.white, bgcolor=win_rate_color)
-    
-    table.cell(perf_table, 0, 5, "Total Profit %", text_color=color.black)
-    profit_color = total_profit >= 0 ? color.green : color.red
-    table.cell(perf_table, 1, 5, str.tostring(total_profit, "#.#") + "%", text_color=color.white, bgcolor=profit_color)
-    
-    table.cell(perf_table, 0, 6, "Avg Per Trade", text_color=color.black)
-    avg_color = avg_profit_per_trade >= 0 ? color.green : color.red
-    table.cell(perf_table, 1, 6, str.tostring(avg_profit_per_trade, "#.#") + "%", text_color=color.white, bgcolor=avg_color)
-    
-    table.cell(perf_table, 0, 7, "Profit Factor", text_color=color.black)
-    pf_color = profit_factor >= 1.5 ? color.green : profit_factor >= 1.0 ? color.orange : color.red
-    table.cell(perf_table, 1, 7, str.tostring(profit_factor, "#.#"), text_color=color.white, bgcolor=pf_color)
+// Create clean, useful tables
+var table performance_dashboard = table.new(position.top_left, 2, 6, bgcolor=color.white, border_width=1)
+var table trading_dashboard = table.new(position.top_right, 2, 8, bgcolor=color.white, border_width=1)
 
-    // Main Indicators Table (already created globally)
-    
-    table.cell(score_table, 0, 0, "Indicator", text_color=color.black, bgcolor=color.gray)
-    table.cell(score_table, 1, 0, "Bullish", text_color=color.black, bgcolor=color.green)
-    table.cell(score_table, 2, 0, "Bearish", text_color=color.black, bgcolor=color.red)
-    
-    table.cell(score_table, 0, 1, "Total Score", text_color=color.black)
-    table.cell(score_table, 1, 1, str.tostring(bullish_score), text_color=color.white, bgcolor=color.green)
-    table.cell(score_table, 2, 1, str.tostring(bearish_score), text_color=color.white, bgcolor=color.red)
-    
-    table.cell(score_table, 0, 2, "RSI", text_color=color.black)
-    table.cell(score_table, 1, 2, str.tostring(math.round(rsi, 2)), text_color=color.black)
-    table.cell(score_table, 2, 2, rsi > rsi_overbought ? "OB" : rsi < rsi_oversold ? "OS" : "Neutral", text_color=color.black)
-    
-    table.cell(score_table, 0, 3, "MACD", text_color=color.black)
-    table.cell(score_table, 1, 3, macd_line > signal_line ? "↑" : "↓", text_color=color.black)
-    table.cell(score_table, 2, 3, str.tostring(math.round(macd_line, 4)), text_color=color.black)
-    
-    table.cell(score_table, 0, 4, "Stochastic", text_color=color.black)
-    table.cell(score_table, 1, 4, str.tostring(math.round(stoch_k, 2)), text_color=color.black)
-    table.cell(score_table, 2, 4, stoch_k > stoch_overbought ? "OB" : stoch_k < stoch_oversold ? "OS" : "Neutral", text_color=color.black)
-    
-    table.cell(score_table, 0, 5, "ADX", text_color=color.black)
-    table.cell(score_table, 1, 5, str.tostring(math.round(adx, 2)), text_color=color.black)
-    table.cell(score_table, 2, 5, adx > adx_threshold ? "Strong" : "Weak", text_color=color.black)
-    
-    table.cell(score_table, 0, 6, "Williams %R", text_color=color.black)
-    table.cell(score_table, 1, 6, str.tostring(math.round(williams_r, 2)), text_color=color.black)
-    table.cell(score_table, 2, 6, williams_r > -20 ? "OB" : williams_r < -80 ? "OS" : "Neutral", text_color=color.black)
-    
-    table.cell(score_table, 0, 7, "CCI", text_color=color.black)
-    table.cell(score_table, 1, 7, str.tostring(math.round(cci, 2)), text_color=color.black)
-    table.cell(score_table, 2, 7, cci > 100 ? "OB" : cci < -100 ? "OS" : "Neutral", text_color=color.black)
-    
-    table.cell(score_table, 0, 8, "MFI", text_color=color.black)
-    table.cell(score_table, 1, 8, str.tostring(math.round(mfi, 2)), text_color=color.black)
-    table.cell(score_table, 2, 8, mfi > 80 ? "OB" : mfi < 20 ? "OS" : "Neutral", text_color=color.black)
-    
-    table.cell(score_table, 0, 9, "PSAR", text_color=color.black)
-    table.cell(score_table, 1, 9, close > psar ? "↑" : "↓", text_color=color.black)
-    table.cell(score_table, 2, 9, str.tostring(math.round(psar, 2)), text_color=color.black)
-    
-    table.cell(score_table, 0, 10, "Ichimoku", text_color=color.black)
-    table.cell(score_table, 1, 10, close > senkou_a and close > senkou_b ? "↑" : "↓", text_color=color.black)
-    table.cell(score_table, 2, 10, tenkan > kijun ? "Bull" : "Bear", text_color=color.black)
-    
-    table.cell(score_table, 0, 11, "Golden Cross", text_color=color.black)
-    table.cell(score_table, 1, 11, golden_cross ? "YES" : "NO", text_color=golden_cross ? color.white : color.black, bgcolor=golden_cross ? color.yellow : na)
-    table.cell(score_table, 2, 11, death_cross ? "YES" : "NO", text_color=death_cross ? color.white : color.black, bgcolor=death_cross ? color.red : na)
-    
-    table.cell(score_table, 0, 12, "Elliott Wave", text_color=color.black)
-    table.cell(score_table, 1, 12, elliott_bullish ? "BULL" : "NEUTRAL", text_color=elliott_bullish ? color.white : color.black, bgcolor=elliott_bullish ? color.green : na)
-    table.cell(score_table, 2, 12, elliott_bearish ? "BEAR" : "NEUTRAL", text_color=elliott_bearish ? color.white : color.black, bgcolor=elliott_bearish ? color.red : na)
-    
-    table.cell(score_table, 0, 13, "Fib Support", text_color=color.black)
-    table.cell(score_table, 1, 13, support_bounce ? "YES" : "NO", text_color=support_bounce ? color.white : color.black, bgcolor=support_bounce ? color.green : na)
-    table.cell(score_table, 2, 13, resistance_rejection ? "YES" : "NO", text_color=resistance_rejection ? color.white : color.black, bgcolor=resistance_rejection ? color.red : na)
-    
-    table.cell(score_table, 0, 14, "Signal", text_color=color.black)
-    signal_text = buy_signal ? "BUY" : sell_signal ? "SELL" : "HOLD"
-    signal_color = buy_signal ? color.green : sell_signal ? color.red : color.gray
-    table.cell(score_table, 1, 14, signal_text, text_color=color.white, bgcolor=signal_color)
-    
-    // Show why no signal if scores are close
-    score_info = buy_signal ? str.tostring(bullish_score) : 
-       sell_signal ? str.tostring(bearish_score) : 
-       bullish_score >= (min_score - 2) or bearish_score >= (min_score - 2) ? 
-       "B:" + str.tostring(bullish_score) + " Be:" + str.tostring(bearish_score) : "Low"
-    
-    table.cell(score_table, 2, 14, score_info, text_color=color.black)
-    
+// Update tables for real-time display
+if true
     // ============================================================================
-    // SIGNAL DETAILS IN TABLE
+    // PERFORMANCE DASHBOARD - Key Metrics Only
     // ============================================================================
     
-    table.cell(score_table, 0, 15, "Wave Status", text_color=color.black)
-    wave_display = current_wave > 0 ? "Wave " + str.tostring(current_wave) : "No Wave"
-    wave_bg = current_wave == 1 or current_wave == 3 or current_wave == 5 ? color.green : 
-       current_wave == 2 or current_wave == 4 ? color.orange : color.gray
-    table.cell(score_table, 1, 15, wave_display, text_color=color.white, bgcolor=wave_bg)
+    table.cell(performance_dashboard, 0, 0, "📊 PERFORMANCE", text_color=color.white, bgcolor=color.navy)
+    table.cell(performance_dashboard, 1, 0, "LIVE RESULTS", text_color=color.white, bgcolor=color.navy)
     
-    wave_action = current_wave == 1 or current_wave == 3 ? "BUY WAVE" : 
-       current_wave == 5 ? "FINAL BUY" : 
-       current_wave == 2 or current_wave == 4 ? "CORRECTION" : "HOLD"
-    table.cell(score_table, 2, 15, wave_action, text_color=color.white, bgcolor=wave_bg)
+    // Win Rate - Most Important Metric
+    table.cell(performance_dashboard, 0, 1, "🏆 Win Rate", text_color=color.black)
+    win_rate_color = win_rate >= 70 ? color.green : win_rate >= 50 ? color.orange : color.red
+    win_rate_text = total_trades > 0 ? str.tostring(win_rate, "#") + "%" : "No Trades"
+    table.cell(performance_dashboard, 1, 1, win_rate_text, text_color=color.white, bgcolor=win_rate_color)
     
-    table.cell(score_table, 0, 16, "Entry Price", text_color=color.black)
+    // Total Profit - Bottom Line
+    table.cell(performance_dashboard, 0, 2, "💰 Total Profit", text_color=color.black)
+    profit_color = total_profit >= 10 ? color.green : total_profit >= 0 ? color.orange : color.red
+    profit_text = str.tostring(total_profit, "#.#") + "%"
+    table.cell(performance_dashboard, 1, 2, profit_text, text_color=color.white, bgcolor=profit_color)
+    
+    // Trade Count
+    table.cell(performance_dashboard, 0, 3, "📈 Trades", text_color=color.black)
+    trades_text = str.tostring(total_trades) + " (" + str.tostring(winning_trades) + "W/" + str.tostring(losing_trades) + "L)"
+    table.cell(performance_dashboard, 1, 3, trades_text, text_color=color.black)
+    
+    // Current Position
+    table.cell(performance_dashboard, 0, 4, "📍 Position", text_color=color.black)
+    position_text = in_long_position ? "LONG" : in_short_position ? "SHORT" : "NONE"
+    position_color = in_long_position ? color.green : in_short_position ? color.red : color.gray
+    table.cell(performance_dashboard, 1, 4, position_text, text_color=color.white, bgcolor=position_color)
+    
+    // Strategy Status
+    table.cell(performance_dashboard, 0, 5, "⚡ Status", text_color=color.black)
+    strategy_status = buy_signal ? "BUY SIGNAL" : sell_signal ? "SELL SIGNAL" : "SCANNING..."
+    status_color = buy_signal ? color.green : sell_signal ? color.red : color.blue
+    table.cell(performance_dashboard, 1, 5, strategy_status, text_color=color.white, bgcolor=status_color)
+
+    // ============================================================================
+    // TRADING DASHBOARD - Essential Info Only
+    // ============================================================================
+    
+    table.cell(trading_dashboard, 0, 0, "🎯 TRADING SIGNALS", text_color=color.white, bgcolor=color.navy)
+    table.cell(trading_dashboard, 1, 0, "LIVE ANALYSIS", text_color=color.white, bgcolor=color.navy)
+    
+    // Current Signal
+    table.cell(trading_dashboard, 0, 1, "📶 Signal", text_color=color.black)
+    signal_display = buy_signal ? "🚀 BUY" : sell_signal ? "🔻 SELL" : "⏸️ HOLD"
+    signal_bg = buy_signal ? color.green : sell_signal ? color.red : color.gray
+    table.cell(trading_dashboard, 1, 1, signal_display, text_color=color.white, bgcolor=signal_bg)
+    
+    // Score Information
+    table.cell(trading_dashboard, 0, 2, "📊 Score", text_color=color.black)
+    score_display = "Bull:" + str.tostring(bullish_score) + " Bear:" + str.tostring(bearish_score)
+    score_bg = bullish_score > bearish_score ? color.green : bearish_score > bullish_score ? color.red : color.gray
+    table.cell(trading_dashboard, 1, 2, score_display, text_color=color.white, bgcolor=score_bg)
+    
+    // Elliott Wave Status
+    table.cell(trading_dashboard, 0, 3, "🌊 Elliott Wave", text_color=color.black)
+    wave_info = current_wave > 0 ? "Wave " + str.tostring(current_wave) : "No Wave"
+    wave_color = current_wave == 1 or current_wave == 3 or current_wave == 5 ? color.green : 
+                current_wave == 2 or current_wave == 4 ? color.orange : color.gray
+    table.cell(trading_dashboard, 1, 3, wave_info, text_color=color.white, bgcolor=wave_color)
+    
+    // Entry/Exit Price
+    table.cell(trading_dashboard, 0, 4, "💰 Target Price", text_color=color.black)
     if buy_signal
-        best_entry = current_wave == 1 ? wave_1_entry_price : 
+        target_price = current_wave == 1 ? wave_1_entry_price : 
            current_wave == 3 ? wave_3_entry_price : 
            current_wave == 5 ? wave_5_entry_price : close
-        table.cell(score_table, 1, 16, str.tostring(best_entry, "#.##"), text_color=color.white, bgcolor=color.green)
-        table.cell(score_table, 2, 16, "BUY NOW", text_color=color.white, bgcolor=color.green)
+        table.cell(trading_dashboard, 1, 4, "BUY: " + str.tostring(target_price, "#.##"), text_color=color.white, bgcolor=color.green)
     else if sell_signal
-        best_exit = current_wave == 2 ? wave_2_exit_price :
+        target_price = current_wave == 2 ? wave_2_exit_price :
            current_wave == 4 ? wave_4_exit_price :
            current_wave == 5 ? wave_5_exit_price : close
-        table.cell(score_table, 1, 16, str.tostring(best_exit, "#.##"), text_color=color.white, bgcolor=color.red)
-        table.cell(score_table, 2, 16, "SELL NOW", text_color=color.white, bgcolor=color.red)
+        table.cell(trading_dashboard, 1, 4, "SELL: " + str.tostring(target_price, "#.##"), text_color=color.white, bgcolor=color.red)
     else
-        table.cell(score_table, 1, 16, str.tostring(close, "#.##"), text_color=color.black)
-        table.cell(score_table, 2, 16, "WAIT", text_color=color.black, bgcolor=color.gray)
+        table.cell(trading_dashboard, 1, 4, "WAIT: " + str.tostring(close, "#.##"), text_color=color.black, bgcolor=color.gray)
     
-    table.cell(score_table, 0, 17, "Confirmations", text_color=color.black)
-    confirmations = (golden_cross ? "GC " : "") + (death_cross ? "DC " : "") + 
-       (bullish_reversal ? "BR " : "") + (bearish_reversal ? "BeR " : "") +
-       (bullish_divergence ? "BD " : "") + (bearish_divergence ? "BeD " : "")
-    conf_text = confirmations != "" ? confirmations : "None"
-    table.cell(score_table, 1, 17, conf_text, text_color=color.black)
-    table.cell(score_table, 2, 17, "Score Diff: " + str.tostring(math.abs(bullish_score - bearish_score), "#.#"), text_color=color.black)
+    // Key Indicators Summary
+    table.cell(trading_dashboard, 0, 5, "📈 Key Indicators", text_color=color.black)
+    key_indicators = "RSI:" + str.tostring(math.round(rsi, 0)) + 
+       (golden_cross ? " GC✓" : death_cross ? " DC✓" : "") +
+       (bullish_reversal ? " REV↑" : bearish_reversal ? " REV↓" : "")
+    table.cell(trading_dashboard, 1, 5, key_indicators, text_color=color.black)
+    
+    // Optimization Guidance
+    table.cell(trading_dashboard, 0, 6, "⚙️ Optimization", text_color=color.black)
+    optimization_tip = total_trades == 0 ? "Lower Min Score" : 
+       win_rate < 40 ? "Tighter Stops" : 
+       win_rate > 80 ? "Higher Min Score" : 
+       avg_profit_per_trade < 2 ? "Higher Take Profit" : "Good Settings"
+    opt_color = total_trades == 0 ? color.orange : 
+               win_rate < 40 ? color.red : 
+               win_rate > 80 ? color.blue : 
+               avg_profit_per_trade < 2 ? color.orange : color.green
+    table.cell(trading_dashboard, 1, 6, optimization_tip, text_color=color.white, bgcolor=opt_color)
+    
+    // Configuration Help
+    table.cell(trading_dashboard, 0, 7, "💡 Config Help", text_color=color.black)
+    config_help = bullish_score >= (min_score - 1) and bearish_score >= (min_score - 1) ? "Scores close - Adjust multiplier" :
+                 bullish_score < (min_score - 3) and bearish_score < (min_score - 3) ? "All scores low - Lower min score" :
+                 math.abs(bullish_score - bearish_score) < 3 ? "No clear direction - Wait" : "Good separation"
+    table.cell(trading_dashboard, 1, 7, config_help, text_color=color.black)
