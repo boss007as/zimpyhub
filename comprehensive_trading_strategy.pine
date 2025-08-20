@@ -724,10 +724,10 @@ alertcondition(death_cross, title="Death Cross Alert", message="Death Cross dete
 
 // REVERSAL DETECTION ALERTS - Critical for Timing
 alertcondition(bullish_reversal and reversal_strength_bull >= 3, title="🔄 STRONG BULLISH REVERSAL", 
- message="🔄 STRONG BULLISH REVERSAL! Strength: " + str.tostring(reversal_strength_bull) + "/5 - Target: " + str.tostring(bullish_reversal_target, "#.##"))
+ message="🔄 STRONG BULLISH REVERSAL detected! Multiple confirmations align for upward reversal - High probability bounce expected!")
 
 alertcondition(bearish_reversal and reversal_strength_bear >= 3, title="🔄 STRONG BEARISH REVERSAL", 
- message="🔄 STRONG BEARISH REVERSAL! Strength: " + str.tostring(reversal_strength_bear) + "/5 - Target: " + str.tostring(bearish_reversal_target, "#.##"))
+ message="🔄 STRONG BEARISH REVERSAL detected! Multiple confirmations align for downward reversal - High probability drop expected!")
 
 // Divergence Alerts - Early Warning System  
 alertcondition(bullish_divergence, title="⚠️ BULLISH DIVERGENCE", 
