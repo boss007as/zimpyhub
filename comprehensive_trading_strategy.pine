@@ -790,40 +790,11 @@ plotshape(sell_signal, title="🔻 HIGH CONFIDENCE SELL", location=location.abov
           style=shape.labeldown, text="🔻 SELL", textcolor=color.white, size=size.large)
 
 // ============================================================================
-// CONSOLIDATED ULTRA SIGNALS - Single Comprehensive Label
+// CLEAN CHART - Signal Details Moved to Table
 // ============================================================================
 
-if buy_signal
-    // All information in ONE clean label to avoid clutter
-    best_entry_price = current_wave == 1 ? wave_1_entry_price : 
-       current_wave == 3 ? wave_3_entry_price : 
-       current_wave == 5 ? wave_5_entry_price : close
-    
-    // Compact signal information
-    signal_summary = "🚀 HIGH CONF BUY | Score:" + str.tostring(bullish_score) + 
-       "\n" + (current_wave > 0 ? "Wave " + str.tostring(current_wave) : "Multi-Signal") +
-       " | Entry:" + str.tostring(best_entry_price, "#.##") +
-       "\n" + (golden_cross ? "GC✓" : "") + (bullish_reversal ? " REV✓" : "") + 
-       " RSI:" + str.tostring(math.round(rsi, 1))
-    
-    label.new(bar_index, low, signal_summary, 
-     color=color.green, textcolor=color.white, style=label.style_label_up, size=size.large, yloc=yloc.belowbar)
-
-if sell_signal
-    // All information in ONE clean label to avoid clutter
-    best_exit_price = current_wave == 2 ? wave_2_exit_price :
-       current_wave == 4 ? wave_4_exit_price :
-       current_wave == 5 ? wave_5_exit_price : close
-    
-    // Compact signal information
-    signal_summary = "🔻 HIGH CONF SELL | Score:" + str.tostring(bearish_score) + 
-       "\n" + (current_wave > 0 ? "Wave " + str.tostring(current_wave) : "Multi-Signal") +
-       " | Exit:" + str.tostring(best_exit_price, "#.##") +
-       "\n" + (death_cross ? "DC✓" : "") + (bearish_reversal ? " REV✓" : "") + 
-       " RSI:" + str.tostring(math.round(rsi, 1))
-    
-    label.new(bar_index, high, signal_summary, 
-     color=color.red, textcolor=color.white, style=label.style_label_down, size=size.large, yloc=yloc.abovebar)
+// No detailed labels on chart - all information is in the table
+// This keeps the chart clean and readable
 
 // Background coloring for strong signals
 bgcolor(buy_signal and bullish_score >= min_score + 3 ? color.new(color.green, 85) : na, title="Strong Buy Background")
@@ -950,8 +921,8 @@ if barstate.islast
     pf_color = profit_factor >= 1.5 ? color.green : profit_factor >= 1.0 ? color.orange : color.red
     table.cell(perf_table, 1, 7, str.tostring(profit_factor, "#.#"), text_color=color.white, bgcolor=pf_color)
 
-    // Main Indicators Table
-    var table score_table = table.new(position.top_right, 3, 15, bgcolor=color.white, border_width=1)
+    // Main Indicators Table - Expanded for signal details
+    var table score_table = table.new(position.top_right, 3, 18, bgcolor=color.white, border_width=1)
     
     table.cell(score_table, 0, 0, "Indicator", text_color=color.black, bgcolor=color.gray)
     table.cell(score_table, 1, 0, "Bullish", text_color=color.black, bgcolor=color.green)
@@ -1021,3 +992,43 @@ if barstate.islast
        "B:" + str.tostring(bullish_score) + " Be:" + str.tostring(bearish_score) : "Low"
     
     table.cell(score_table, 2, 14, score_info, text_color=color.black)
+    
+    // ============================================================================
+    // SIGNAL DETAILS IN TABLE
+    // ============================================================================
+    
+    table.cell(score_table, 0, 15, "Wave Status", text_color=color.black)
+    wave_display = current_wave > 0 ? "Wave " + str.tostring(current_wave) : "No Wave"
+    wave_bg = current_wave == 1 or current_wave == 3 or current_wave == 5 ? color.green : 
+              current_wave == 2 or current_wave == 4 ? color.orange : color.gray
+    table.cell(score_table, 1, 15, wave_display, text_color=color.white, bgcolor=wave_bg)
+    
+    wave_action = current_wave == 1 or current_wave == 3 ? "BUY WAVE" : 
+                  current_wave == 5 ? "FINAL BUY" : 
+                  current_wave == 2 or current_wave == 4 ? "CORRECTION" : "HOLD"
+    table.cell(score_table, 2, 15, wave_action, text_color=color.white, bgcolor=wave_bg)
+    
+    table.cell(score_table, 0, 16, "Entry Price", text_color=color.black)
+    if buy_signal
+        best_entry = current_wave == 1 ? wave_1_entry_price : 
+                    current_wave == 3 ? wave_3_entry_price : 
+                    current_wave == 5 ? wave_5_entry_price : close
+        table.cell(score_table, 1, 16, str.tostring(best_entry, "#.##"), text_color=color.white, bgcolor=color.green)
+        table.cell(score_table, 2, 16, "BUY NOW", text_color=color.white, bgcolor=color.green)
+    else if sell_signal
+        best_exit = current_wave == 2 ? wave_2_exit_price :
+                   current_wave == 4 ? wave_4_exit_price :
+                   current_wave == 5 ? wave_5_exit_price : close
+        table.cell(score_table, 1, 16, str.tostring(best_exit, "#.##"), text_color=color.white, bgcolor=color.red)
+        table.cell(score_table, 2, 16, "SELL NOW", text_color=color.white, bgcolor=color.red)
+    else
+        table.cell(score_table, 1, 16, str.tostring(close, "#.##"), text_color=color.black)
+        table.cell(score_table, 2, 16, "WAIT", text_color=color.black, bgcolor=color.gray)
+    
+    table.cell(score_table, 0, 17, "Confirmations", text_color=color.black)
+    confirmations = (golden_cross ? "GC " : "") + (death_cross ? "DC " : "") + 
+                   (bullish_reversal ? "BR " : "") + (bearish_reversal ? "BeR " : "") +
+                   (bullish_divergence ? "BD " : "") + (bearish_divergence ? "BeD " : "")
+    conf_text = confirmations != "" ? confirmations : "None"
+    table.cell(score_table, 1, 17, conf_text, text_color=color.black)
+    table.cell(score_table, 2, 17, "Score Diff: " + str.tostring(math.abs(bullish_score - bearish_score), "#.#"), text_color=color.black)
