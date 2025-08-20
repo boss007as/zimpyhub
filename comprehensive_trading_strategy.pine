@@ -143,30 +143,30 @@ triangle_pattern = higher_lows and lower_highs
 
 // Head and Shoulders (simplified detection)
 head_shoulders = not na(pivot_high[10]) and not na(pivot_high[5]) and not na(pivot_high) and 
- pivot_high[5] > pivot_high[10] and pivot_high[5] > pivot_high and
- math.abs(pivot_high[10] - pivot_high) < (high - low) * 0.05
+   pivot_high[5] > pivot_high[10] and pivot_high[5] > pivot_high and
+   math.abs(pivot_high[10] - pivot_high) < (high - low) * 0.05
 
 // Inverse Head and Shoulders
 inv_head_shoulders = not na(pivot_low[10]) and not na(pivot_low[5]) and not na(pivot_low) and 
- pivot_low[5] < pivot_low[10] and pivot_low[5] < pivot_low and
- math.abs(pivot_low[10] - pivot_low) < (high - low) * 0.05
+   pivot_low[5] < pivot_low[10] and pivot_low[5] < pivot_low and
+   math.abs(pivot_low[10] - pivot_low) < (high - low) * 0.05
 
 // Flag and Pennant Patterns
 flag_pattern_bull = close > close[10] and close[10] > close[20] and 
- (high[1] - low[1]) < (high[10] - low[10]) * 0.5
+   (high[1] - low[1]) < (high[10] - low[10]) * 0.5
 flag_pattern_bear = close < close[10] and close[10] < close[20] and 
- (high[1] - low[1]) < (high[10] - low[10]) * 0.5
+   (high[1] - low[1]) < (high[10] - low[10]) * 0.5
 
 // Wedge Patterns
 rising_wedge = low > low[5] and low[5] > low[10] and high > high[5] and high[5] > high[10] and
- (high - low) < (high[10] - low[10])
+   (high - low) < (high[10] - low[10])
 falling_wedge = low < low[5] and low[5] < low[10] and high < high[5] and high[5] < high[10] and
- (high - low) < (high[10] - low[10])
+   (high - low) < (high[10] - low[10])
 
 // Cup and Handle Pattern
 cup_pattern = not na(pivot_low[20]) and not na(pivot_low[10]) and not na(pivot_low) and 
- pivot_low[10] < pivot_low[20] and pivot_low[10] < pivot_low and
- math.abs(pivot_low[20] - pivot_low) < (high - low) * 0.1
+   pivot_low[10] < pivot_low[20] and pivot_low[10] < pivot_low and
+   math.abs(pivot_low[20] - pivot_low) < (high - low) * 0.1
 
 // ============================================================================
 // ENHANCED ELLIOTT WAVE ANALYSIS - Current Wave Identification
@@ -272,22 +272,22 @@ shooting_star_reversal = shooting_star and resistance_zone and rsi > 60
 // 7. COMPREHENSIVE REVERSAL SIGNALS
 // BULLISH REVERSAL (Upward turn likely)
 bullish_reversal = (bullish_divergence or wave_2_bounce_setup or wave_4_bounce_setup or 
-                   (extreme_oversold and support_zone) or 
-                   (hammer_reversal and volume_spike) or
-                   (doji_reversal and support_zone and rsi < 35))
+   (extreme_oversold and support_zone) or 
+   (hammer_reversal and volume_spike) or
+   (doji_reversal and support_zone and rsi < 35))
 
 // BEARISH REVERSAL (Downward turn likely)
 bearish_reversal = (bearish_divergence or wave_5_reversal_imminent or 
-                   (extreme_overbought and resistance_zone) or
-                   (shooting_star_reversal and volume_spike) or
-                   (doji_reversal and resistance_zone and rsi > 65))
+   (extreme_overbought and resistance_zone) or
+   (shooting_star_reversal and volume_spike) or
+   (doji_reversal and resistance_zone and rsi > 65))
 
 // REVERSAL STRENGTH (1-5 scale)
 reversal_strength_bull = (bullish_divergence ? 1 : 0) + (wave_2_bounce_setup or wave_4_bounce_setup ? 1 : 0) + 
-                        (extreme_oversold ? 1 : 0) + (support_zone ? 1 : 0) + (volume_spike and hammer ? 1 : 0)
+   (extreme_oversold ? 1 : 0) + (support_zone ? 1 : 0) + (volume_spike and hammer ? 1 : 0)
 
 reversal_strength_bear = (bearish_divergence ? 1 : 0) + (wave_5_reversal_imminent ? 2 : 0) + 
-                        (extreme_overbought ? 1 : 0) + (resistance_zone ? 1 : 0) + (volume_spike and shooting_star ? 1 : 0)
+   (extreme_overbought ? 1 : 0) + (resistance_zone ? 1 : 0) + (volume_spike and shooting_star ? 1 : 0)
 
 // REVERSAL PRICE TARGETS
 bullish_reversal_target = support_zone ? close * 1.05 : close * 1.08  // 5-8% bounce expected
@@ -295,9 +295,9 @@ bearish_reversal_target = resistance_zone ? close * 0.95 : close * 0.92  // 5-8%
 
 // Rectangle Pattern
 rectangle_top = math.abs(high - high[5]) < (high - low) * 0.02 and 
- math.abs(high[5] - high[10]) < (high - low) * 0.02
+   math.abs(high[5] - high[10]) < (high - low) * 0.02
 rectangle_bottom = math.abs(low - low[5]) < (high - low) * 0.02 and 
- math.abs(low[5] - low[10]) < (high - low) * 0.02
+   math.abs(low[5] - low[10]) < (high - low) * 0.02
 rectangle_pattern = rectangle_top and rectangle_bottom
 
 // Breakout from Rectangle
@@ -306,19 +306,19 @@ rectangle_breakout_bear = rectangle_pattern[1] == true and close < low[1]
 
 // Three White Soldiers / Three Black Crows
 three_white_soldiers = close > open and close[1] > open[1] and close[2] > open[2] and
- close > close[1] and close[1] > close[2] and
- open < close[1] and open[1] < close[2]
+   close > close[1] and close[1] > close[2] and
+   open < close[1] and open[1] < close[2]
 
 three_black_crows = close < open and close[1] < open[1] and close[2] < open[2] and
- close < close[1] and close[1] < close[2] and
- open > close[1] and open[1] > close[2]
+   close < close[1] and close[1] < close[2] and
+   open > close[1] and open[1] > close[2]
 
 // Morning Star / Evening Star
 morning_star = close[2] < open[2] and math.abs(close[1] - open[1]) < (high[1] - low[1]) * 0.3 and
- close > open and close > (close[2] + open[2]) / 2
+   close > open and close > (close[2] + open[2]) / 2
 
 evening_star = close[2] > open[2] and math.abs(close[1] - open[1]) < (high[1] - low[1]) * 0.3 and
- close < open and close < (close[2] + open[2]) / 2
+   close < open and close < (close[2] + open[2]) / 2
 
 // Gap Patterns
 gap_up = low > high[1]
@@ -481,19 +481,19 @@ required_difference = min_score * signal_strength_multiplier
 
 // Ultra-strong buy: Extreme conditions required
 ultra_buy_conditions = bullish_score >= (min_score + 5) and 
- score_difference >= (required_difference * 1.5) and 
- bullish_score > (bearish_score * 2) and
- (golden_cross or (current_wave == 1 or current_wave == 3) or bullish_reversal) and
- (rsi < 40 or bullish_divergence) and
- volume > volume_sma_20 * 1.5
+   score_difference >= (required_difference * 1.5) and 
+   bullish_score > (bearish_score * 2) and
+   (golden_cross or (current_wave == 1 or current_wave == 3) or bullish_reversal) and
+   (rsi < 40 or bullish_divergence) and
+   volume > volume_sma_20 * 1.5
 
 // Ultra-strong sell: Extreme conditions required  
 ultra_sell_conditions = bearish_score >= (min_score + 5) and 
- score_difference >= (required_difference * 1.5) and 
- bearish_score > (bullish_score * 2) and
- (death_cross or current_wave == 5 or bearish_reversal) and
- (rsi > 60 or bearish_divergence) and
- volume > volume_sma_20 * 1.2
+   score_difference >= (required_difference * 1.5) and 
+   bearish_score > (bullish_score * 2) and
+   (death_cross or current_wave == 5 or bearish_reversal) and
+   (rsi > 60 or bearish_divergence) and
+   volume > volume_sma_20 * 1.2
 
 // Final signals - ONLY ultra high confidence
 buy_signal = ultra_buy_conditions
