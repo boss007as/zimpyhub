@@ -44,9 +44,9 @@ williams_length = input.int(14, title="Williams %R Length", group="Williams %R")
 // Commodity Channel Index (CCI)
 cci_length = input.int(20, title="CCI Length", group="CCI")
 
-// Scoring System - Higher threshold for stronger signals
-min_score = input.int(15, title="Minimum Score for Signal", group="Signal Settings", minval=10, maxval=25)
-signal_strength_multiplier = input.float(1.5, title="Signal Strength Multiplier", group="Signal Settings", minval=1.0, maxval=3.0)
+// Scoring System - Balanced threshold for practical signals
+min_score = input.int(8, title="Minimum Score for Signal", group="Signal Settings", minval=5, maxval=20)
+signal_strength_multiplier = input.float(1.2, title="Signal Strength Multiplier", group="Signal Settings", minval=1.0, maxval=2.0)
 
 // ============================================================================
 // INDICATOR CALCULATIONS
@@ -525,28 +525,39 @@ if gap_down and volume > volume_ma * 1.5
 score_difference = math.abs(bullish_score - bearish_score)
 required_difference = min_score * signal_strength_multiplier
 
-// ULTRA HIGH CONFIDENCE SIGNALS ONLY
-// Require multiple major confirmations for maximum reliability
+// HIGH CONFIDENCE SIGNALS - Balanced for Practical Trading
+// Require strong confirmations but not impossible standards
 
-// Ultra-strong buy: Extreme conditions required
-ultra_buy_conditions = bullish_score >= (min_score + 5) and 
-   score_difference >= (required_difference * 1.5) and 
-   bullish_score > (bearish_score * 2) and
-   (golden_cross or (current_wave == 1 or current_wave == 3) or bullish_reversal) and
-   (rsi < 40 or bullish_divergence) and
-   volume > volume_sma_20 * 1.5
+// Strong buy: Multiple confirmations required
+strong_buy_conditions = bullish_score >= min_score and 
+   score_difference >= required_difference and 
+   bullish_score > bearish_score and
+   (golden_cross or (current_wave == 1 or current_wave == 3) or bullish_reversal or 
+    (rsi < rsi_oversold and macd_line > signal_line))
 
-// Ultra-strong sell: Extreme conditions required  
-ultra_sell_conditions = bearish_score >= (min_score + 5) and 
-   score_difference >= (required_difference * 1.5) and 
-   bearish_score > (bullish_score * 2) and
-   (death_cross or current_wave == 5 or bearish_reversal) and
-   (rsi > 60 or bearish_divergence) and
-   volume > volume_sma_20 * 1.2
+// Strong sell: Multiple confirmations required  
+strong_sell_conditions = bearish_score >= min_score and 
+   score_difference >= required_difference and 
+   bearish_score > bullish_score and
+   (death_cross or current_wave == 5 or bearish_reversal or 
+    (rsi > rsi_overbought and macd_line < signal_line))
 
-// Final signals - ONLY ultra high confidence
-buy_signal = ultra_buy_conditions
-sell_signal = ultra_sell_conditions
+// Final signals - High confidence but achievable
+buy_signal = strong_buy_conditions
+
+// Fallback signals for when main system is too strict
+simple_buy = bullish_score >= (min_score - 2) and bullish_score > bearish_score and 
+   (golden_cross or (rsi < 35 and macd_line > signal_line) or (current_wave == 1 or current_wave == 3))
+
+simple_sell = bearish_score >= (min_score - 2) and bearish_score > bullish_score and 
+   (death_cross or (rsi > 65 and macd_line < signal_line) or current_wave == 5)
+
+sell_signal = strong_sell_conditions
+
+// Use fallback if main signals are not triggering
+if not buy_signal and not sell_signal
+    buy_signal := simple_buy
+    sell_signal := simple_sell
 
 // ============================================================================
 // PLOTTING AND VISUALIZATION
@@ -674,12 +685,12 @@ if critical_bullish_signal != "" and critical_bullish_signal != "⚠️ BEARISH 
 // ULTRA-STRONG SIGNALS ONLY - Just 2 Plots
 // ============================================================================
 
-// Plot ONLY ultra-high confidence signals (extremely rare but highly reliable)
-plotshape(buy_signal, title="🚀 ULTRA HIGH CONFIDENCE BUY", location=location.belowbar, color=color.green, 
-          style=shape.labelup, text="🚀 ULTRA BUY", textcolor=color.white, size=size.large)
+// Plot high confidence signals with practical thresholds
+plotshape(buy_signal, title="🚀 HIGH CONFIDENCE BUY", location=location.belowbar, color=color.green, 
+          style=shape.labelup, text="🚀 BUY", textcolor=color.white, size=size.large)
 
-plotshape(sell_signal, title="🔻 ULTRA HIGH CONFIDENCE SELL", location=location.abovebar, color=color.red, 
-          style=shape.labeldown, text="🔻 ULTRA SELL", textcolor=color.white, size=size.large)
+plotshape(sell_signal, title="🔻 HIGH CONFIDENCE SELL", location=location.abovebar, color=color.red, 
+          style=shape.labeldown, text="🔻 SELL", textcolor=color.white, size=size.large)
 
 // ============================================================================
 // CONSOLIDATED ULTRA SIGNALS - Single Comprehensive Label
@@ -692,7 +703,7 @@ if buy_signal
        current_wave == 5 ? wave_5_entry_price : close
     
     // Compact signal information
-    signal_summary = "🚀 ULTRA BUY | Score:" + str.tostring(bullish_score) + 
+    signal_summary = "🚀 HIGH CONF BUY | Score:" + str.tostring(bullish_score) + 
        "\n" + (current_wave > 0 ? "Wave " + str.tostring(current_wave) : "Multi-Signal") +
        " | Entry:" + str.tostring(best_entry_price, "#.##") +
        "\n" + (golden_cross ? "GC✓" : "") + (bullish_reversal ? " REV✓" : "") + 
@@ -708,7 +719,7 @@ if sell_signal
        current_wave == 5 ? wave_5_exit_price : close
     
     // Compact signal information
-    signal_summary = "🔻 ULTRA SELL | Score:" + str.tostring(bearish_score) + 
+    signal_summary = "🔻 HIGH CONF SELL | Score:" + str.tostring(bearish_score) + 
        "\n" + (current_wave > 0 ? "Wave " + str.tostring(current_wave) : "Multi-Signal") +
        " | Exit:" + str.tostring(best_exit_price, "#.##") +
        "\n" + (death_cross ? "DC✓" : "") + (bearish_reversal ? " REV✓" : "") + 
@@ -849,4 +860,11 @@ if barstate.islast
     signal_text = buy_signal ? "BUY" : sell_signal ? "SELL" : "HOLD"
     signal_color = buy_signal ? color.green : sell_signal ? color.red : color.gray
     table.cell(score_table, 1, 14, signal_text, text_color=color.white, bgcolor=signal_color)
-    table.cell(score_table, 2, 14, buy_signal ? str.tostring(bullish_score) : sell_signal ? str.tostring(bearish_score) : "0", text_color=color.black)
+    
+    // Show why no signal if scores are close
+    score_info = buy_signal ? str.tostring(bullish_score) : 
+                sell_signal ? str.tostring(bearish_score) : 
+                bullish_score >= (min_score - 2) or bearish_score >= (min_score - 2) ? 
+                "B:" + str.tostring(bullish_score) + " Be:" + str.tostring(bearish_score) : "Low"
+    
+    table.cell(score_table, 2, 14, score_info, text_color=color.black)
