@@ -863,8 +863,8 @@ if barstate.islast
     
     // Show why no signal if scores are close
     score_info = buy_signal ? str.tostring(bullish_score) : 
-                sell_signal ? str.tostring(bearish_score) : 
-                bullish_score >= (min_score - 2) or bearish_score >= (min_score - 2) ? 
-                "B:" + str.tostring(bullish_score) + " Be:" + str.tostring(bearish_score) : "Low"
+       sell_signal ? str.tostring(bearish_score) : 
+       bullish_score >= (min_score - 2) or bearish_score >= (min_score - 2) ? 
+       "B:" + str.tostring(bullish_score) + " Be:" + str.tostring(bearish_score) : "Low"
     
     table.cell(score_table, 2, 14, score_info, text_color=color.black)
