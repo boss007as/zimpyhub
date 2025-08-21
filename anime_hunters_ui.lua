@@ -29,7 +29,7 @@ local leaveAtTime = 30
 local leaveByWave = false
 local leaveAtWave = 5
 local currentPlayerMode = ""
-local modeMonitorConnection = nil
+local modeMonitorConnections = {}
 local playerModeConnection = nil
 local savedLocation = nil
 
@@ -934,104 +934,115 @@ local function stopAutoAttack()
     isWalkingToTarget = false
 end
 
--- Monitor gamemode status and player mode
-local lastPlayerModeCheckTime = 0
-local lastModeMonitorTime = 0
-
+-- Monitor gamemode status and player mode with real-time change detection
 local function startModeMonitoring()
-    if modeMonitorConnection then
-        modeMonitorConnection:Disconnect()
+    -- Clear old connections
+    for _, connection in pairs(modeMonitorConnections) do
+        connection:Disconnect()
     end
+    modeMonitorConnections = {}
     
     if playerModeConnection then
         playerModeConnection:Disconnect()
     end
     
-    -- Monitor player's current mode
-    playerModeConnection = RunService.Heartbeat:Connect(function()
-        local currentTime = tick()
-        if currentTime - lastPlayerModeCheckTime < 1 then
-            return -- Check every second to avoid lag
-        end
-        lastPlayerModeCheckTime = currentTime
-        
+    -- Monitor player's current mode with attribute change signal
+    playerModeConnection = player:GetAttributeChangedSignal("Mode"):Connect(function()
         local newPlayerMode = player:GetAttribute("Mode") or "World"
-        if newPlayerMode ~= currentPlayerMode then
-            currentPlayerMode = newPlayerMode
-            
-            -- Reset current target when mode changes
-            currentTarget = nil
-            disconnectTargetMonitoring()
-            isWalkingToTarget = false
-            
-            -- Update status display
-            if currentPlayerMode ~= "World" then
-                ModeStatus:SetTitle("Current Mode: " .. currentPlayerMode)
-                ModeStatus:SetDesc("Currently in gamemode. Auto-targeting gamemode enemies.")
-                WindUI:Notify({
-                    Title = "Mode Changed",
-                    Content = "Now in: " .. currentPlayerMode,
-                    Icon = "gamepad-2",
-                    Duration = 2,
-                })
-            else
-                ModeStatus:SetTitle("Current Mode: World")
-                ModeStatus:SetDesc("Not in any gamemode currently.")
-            end
+        currentPlayerMode = newPlayerMode
+        
+        -- Reset current target when mode changes
+        currentTarget = nil
+        disconnectTargetMonitoring()
+        isWalkingToTarget = false
+        
+        -- Update status display
+        if currentPlayerMode ~= "World" then
+            ModeStatus:SetTitle("Current Mode: " .. currentPlayerMode)
+            ModeStatus:SetDesc("Currently in gamemode. Auto-targeting gamemode enemies.")
+            WindUI:Notify({
+                Title = "Mode Changed",
+                Content = "Now in: " .. currentPlayerMode,
+                Icon = "gamepad-2",
+                Duration = 2,
+            })
+        else
+            ModeStatus:SetTitle("Current Mode: World")
+            ModeStatus:SetDesc("Not in any gamemode currently.")
         end
     end)
     
-    -- Monitor selected gamemodes for auto-join
+    -- Set initial player mode
+    currentPlayerMode = player:GetAttribute("Mode") or "World"
+    
+    -- Monitor selected gamemodes with real-time change detection
     if autoJoinEnabled and #selectedModes > 0 then
-        modeMonitorConnection = RunService.Heartbeat:Connect(function()
-            local currentTime = tick()
-            if currentTime - lastModeMonitorTime < 2 then
-                return -- Check every 2 seconds to avoid spam
-            end
-            lastModeMonitorTime = currentTime
-            
-            local gamemodeFolder = game:GetService("ReplicatedStorage"):FindFirstChild("Gamemodes")
-            if gamemodeFolder then
-                -- Check all selected modes
-                for _, modeName in pairs(selectedModes) do
-                    local modeFolder = gamemodeFolder:FindFirstChild(modeName)
-                    if modeFolder then
+        local gamemodeFolder = game:GetService("ReplicatedStorage"):FindFirstChild("Gamemodes")
+        if gamemodeFolder then
+            for _, modeName in pairs(selectedModes) do
+                local modeFolder = gamemodeFolder:FindFirstChild(modeName)
+                if modeFolder then
+                    -- Monitor Open attribute changes for instant join
+                    local openConnection = modeFolder:GetAttributeChangedSignal("Open"):Connect(function()
                         local isOpen = modeFolder:GetAttribute("Open")
-                        local timer = modeFolder:GetAttribute("Timer") or 0
-                        
-                        -- Auto join if mode is open and player not already in any gamemode
                         if isOpen and currentPlayerMode == "World" then
+                            WindUI:Notify({
+                                Title = "Gamemode Opened",
+                                Content = modeName .. " is now open! Joining...",
+                                Icon = "door-open",
+                                Duration = 2,
+                            })
                             spawn(function() joinGamemode(modeName) end)
-                            break -- Only join one at a time
                         end
-                        
-                        -- Auto leave based on timer or wave
-                        if autoLeaveEnabled and currentPlayerMode == modeName then
-                            if leaveByWave then
-                                -- Leave by wave/remaining rooms
+                    end)
+                    table.insert(modeMonitorConnections, openConnection)
+                    
+                    -- Monitor Timer/Remaining for auto-leave
+                    if autoLeaveEnabled then
+                        if leaveByWave then
+                            -- Monitor Remaining attribute for wave-based leaving
+                            local remainingConnection = modeFolder:GetAttributeChangedSignal("Remaining"):Connect(function()
                                 local remaining = modeFolder:GetAttribute("Remaining") or 999
-                                if remaining <= leaveAtWave then
+                                if currentPlayerMode == modeName and remaining <= leaveAtWave then
+                                    WindUI:Notify({
+                                        Title = "Auto Leave",
+                                        Content = "Only " .. remaining .. " waves left, leaving " .. modeName,
+                                        Icon = "layers",
+                                        Duration = 2,
+                                    })
                                     spawn(function() leaveGamemode() end)
                                 end
-                            else
-                                -- Leave by timer
-                                if timer <= leaveAtTime then
+                            end)
+                            table.insert(modeMonitorConnections, remainingConnection)
+                        else
+                            -- Monitor Timer attribute for time-based leaving
+                            local timerConnection = modeFolder:GetAttributeChangedSignal("Timer"):Connect(function()
+                                local timer = modeFolder:GetAttribute("Timer") or 0
+                                if currentPlayerMode == modeName and timer <= leaveAtTime then
+                                    WindUI:Notify({
+                                        Title = "Auto Leave",
+                                        Content = "Only " .. timer .. " seconds left, leaving " .. modeName,
+                                        Icon = "clock",
+                                        Duration = 2,
+                                    })
                                     spawn(function() leaveGamemode() end)
                                 end
-                            end
+                            end)
+                            table.insert(modeMonitorConnections, timerConnection)
                         end
                     end
                 end
             end
-        end)
+        end
     end
 end
 
 local function stopModeMonitoring()
-    if modeMonitorConnection then
-        modeMonitorConnection:Disconnect()
-        modeMonitorConnection = nil
+    for _, connection in pairs(modeMonitorConnections) do
+        connection:Disconnect()
     end
+    modeMonitorConnections = {}
+    
     if playerModeConnection then
         playerModeConnection:Disconnect()
         playerModeConnection = nil
