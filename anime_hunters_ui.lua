@@ -26,6 +26,7 @@ local autoHatchEnabled = false
 local hatchWorld = ""
 local hatchMode = "Single"
 local hatchSpeed = 0.5
+local multiHatchAmount = 10
 local hatchConnection = nil
 
 -- Variables for Auto Join Mode
@@ -103,6 +104,12 @@ Tabs.MainSection = Window:Section({
     Opened = true,
 })
 
+Tabs.HatchSection = Window:Section({
+    Title = "Auto Hatch",
+    Icon = "egg",
+    Opened = true,
+})
+
 Tabs.GamemodeSection = Window:Section({
     Title = "Auto Join Modes",
     Icon = "gamepad-2",
@@ -119,6 +126,12 @@ Tabs.MainTab = Tabs.MainSection:Tab({
     Title = "Auto Attack", 
     Icon = "zap", 
     Desc = "Configure auto attack settings" 
+})
+
+Tabs.HatchTab = Tabs.HatchSection:Tab({ 
+    Title = "Auto Hatch", 
+    Icon = "egg", 
+    Desc = "Automatically hatch eggs from worlds" 
 })
 
 Tabs.GamemodeTab = Tabs.GamemodeSection:Tab({ 
@@ -313,6 +326,42 @@ local function getHatchWorlds()
     return worlds
 end
 
+-- Currency conversion function
+local function convertCurrencyToNumber(currencyString)
+    if not currencyString then return 0 end
+    
+    local str = tostring(currencyString):upper()
+    local number = tonumber(str:match("%d+%.?%d*")) or 0
+    
+    if str:find("K") then
+        return number * 1000
+    elseif str:find("M") then
+        return number * 1000000
+    elseif str:find("B") then
+        return number * 1000000000
+    elseif str:find("T") then
+        return number * 1000000000000
+    elseif str:find("QD") then
+        return number * 1000000000000000
+    elseif str:find("QN") then
+        return number * 1000000000000000000
+    else
+        return number
+    end
+end
+
+-- Get player's current Stars currency
+local function getPlayerStars()
+    local leaderstats = player:FindFirstChild("leaderstats")
+    if leaderstats then
+        local stars = leaderstats:FindFirstChild("Stars")
+        if stars then
+            return convertCurrencyToNumber(stars.Value)
+        end
+    end
+    return 0
+end
+
 -- Auto hatch function
 local lastHatchTime = 0
 
@@ -331,23 +380,33 @@ local function startAutoHatch()
             return -- Not enough time passed
         end
         
+        -- Check if player has enough currency (basic check)
+        local playerStars = getPlayerStars()
+        if playerStars <= 0 then
+            return -- No currency to hatch
+        end
+        
         -- Protected hatch call
         spawn(function()
             local success, err = pcall(function()
                 if hatchMode == "Multi" then
-                    -- Multi hatch logic (you'll need to provide the correct remote structure)
+                    -- Multi hatch logic
                     local args = {
-                        "Hatch",
-                        hatchWorld,
-                        "Multi"
+                        "General",
+                        "Stars",
+                        "Multi",
+                        multiHatchAmount,
+                        hatchWorld
                     }
                     game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Signal"):FireServer(unpack(args))
                 else
                     -- Single hatch logic
                     local args = {
-                        "Hatch",
-                        hatchWorld,
-                        "Single"
+                        "General",
+                        "Stars",
+                        "Single",
+                        1, -- Amount (always 1 for single)
+                        hatchWorld
                     }
                     game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Signal"):FireServer(unpack(args))
                 end
@@ -1436,20 +1495,28 @@ Tabs.MainTab:Button({
     end
 })
 
--- Auto Hatch Section
-Tabs.MainTab:Divider()
 
-Tabs.MainTab:Paragraph({
+
+-- Hatch Tab Elements
+Tabs.HatchTab:Paragraph({
     Title = "Auto Hatch System",
-    Desc = "Automatically hatch eggs/items from selected worlds. Choose single or multi hatch mode.",
+    Desc = "Automatically hatch eggs from selected worlds using your Stars currency. Supports both single and multi hatching modes.",
     Image = "egg",
     Color = "Orange",
 })
 
+-- Currency Display
+local CurrencyStatus = Tabs.HatchTab:Paragraph({
+    Title = "Current Stars: Loading...",
+    Desc = "Your current Stars currency for hatching.",
+    Image = "star",
+    Color = "Yellow",
+})
+
 -- Hatch World Selection
-local HatchWorldDropdown = Tabs.MainTab:Dropdown({
+local HatchWorldDropdown = Tabs.HatchTab:Dropdown({
     Title = "Hatch World",
-    Desc = "Select world to hatch from",
+    Desc = "Select world to hatch eggs from",
     Icon = "globe",
     Values = getHatchWorlds(),
     Value = "",
@@ -1475,7 +1542,7 @@ local HatchWorldDropdown = Tabs.MainTab:Dropdown({
 })
 
 -- Hatch Mode Selection
-local HatchModeDropdown = Tabs.MainTab:Dropdown({
+local HatchModeDropdown = Tabs.HatchTab:Dropdown({
     Title = "Hatch Mode",
     Desc = "Choose hatching method",
     Icon = "layers",
@@ -1492,8 +1559,23 @@ local HatchModeDropdown = Tabs.MainTab:Dropdown({
     end
 })
 
+-- Multi Hatch Amount Slider
+local MultiHatchSlider = Tabs.HatchTab:Slider({
+    Title = "Multi Hatch Amount",
+    Desc = "Number of eggs to hatch at once in Multi mode",
+    Value = {
+        Min = 1,
+        Max = 100,
+        Default = 10,
+    },
+    Step = 1,
+    Callback = function(value)
+        multiHatchAmount = tonumber(value) or 10
+    end
+})
+
 -- Hatch Speed Slider
-local HatchSpeedSlider = Tabs.MainTab:Slider({
+local HatchSpeedSlider = Tabs.HatchTab:Slider({
     Title = "Hatch Speed",
     Desc = "Adjust the delay between hatches (lower = faster)",
     Value = {
@@ -1507,8 +1589,10 @@ local HatchSpeedSlider = Tabs.MainTab:Slider({
     end
 })
 
+Tabs.HatchTab:Divider()
+
 -- Auto Hatch Toggle
-local AutoHatchToggle = Tabs.MainTab:Toggle({
+local AutoHatchToggle = Tabs.HatchTab:Toggle({
     Title = "Auto Hatch",
     Desc = "Enable/disable automatic hatching",
     Icon = "egg",
@@ -1541,6 +1625,63 @@ local AutoHatchToggle = Tabs.MainTab:Toggle({
                 Content = "Auto Hatch disabled!",
                 Icon = "x",
                 Duration = 3,
+            })
+        end
+    end
+})
+
+Tabs.HatchTab:Button({
+    Title = "Refresh Hatch Worlds",
+    Desc = "Update the list of available worlds for hatching",
+    Icon = "refresh-cw",
+    Callback = function()
+        local worlds = getHatchWorlds()
+        HatchWorldDropdown:Refresh(worlds)
+        WindUI:Notify({
+            Title = "Worlds Refreshed",
+            Content = "Found " .. #worlds .. " hatch worlds",
+            Icon = "refresh-cw",
+            Duration = 2,
+        })
+    end
+})
+
+Tabs.HatchTab:Button({
+    Title = "Test Hatch",
+    Desc = "Send a single hatch command to test if it's working",
+    Icon = "egg",
+    Callback = function()
+        if hatchWorld ~= "" then
+            local playerStars = getPlayerStars()
+            if playerStars > 0 then
+                local args = {
+                    "General",
+                    "Stars",
+                    "Single",
+                    1,
+                    hatchWorld
+                }
+                game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Signal"):FireServer(unpack(args))
+                WindUI:Notify({
+                    Title = "Test Hatch",
+                    Content = "Hatch command sent for " .. hatchWorld,
+                    Icon = "egg",
+                    Duration = 2,
+                })
+            else
+                WindUI:Notify({
+                    Title = "No Currency",
+                    Content = "You don't have enough Stars to hatch!",
+                    Icon = "alert-triangle",
+                    Duration = 2,
+                })
+            end
+        else
+            WindUI:Notify({
+                Title = "No World Selected",
+                Content = "Please select a hatch world first!",
+                Icon = "alert-triangle",
+                Duration = 2,
             })
         end
     end
@@ -1760,6 +1901,7 @@ myConfig:Register("tweenSpeed", TweenSpeedSlider)
 myConfig:Register("hatchWorld", HatchWorldDropdown)
 myConfig:Register("hatchMode", HatchModeDropdown)
 myConfig:Register("hatchSpeed", HatchSpeedSlider)
+myConfig:Register("multiHatchAmount", MultiHatchSlider)
 myConfig:Register("autoHatchEnabled", AutoHatchToggle)
 myConfig:Register("selectedModes", GamemodeDropdown)
 myConfig:Register("autoJoinEnabled", AutoJoinToggle)
@@ -1839,6 +1981,7 @@ Tabs.ConfigTab:Button({
         hatchWorld = ""
         hatchMode = "Single"
         hatchSpeed = 0.5
+        multiHatchAmount = 10
         autoHatchEnabled = false
         selectedModes = {}
         autoJoinEnabled = false
@@ -1874,6 +2017,34 @@ end)
 Window:OnClose(function()
     stopAutoAttack()
     print("Anime Hunters UI closed.")
+end)
+
+-- Currency monitoring
+spawn(function()
+    while true do
+        wait(2) -- Update currency display every 2 seconds
+        local stars = getPlayerStars()
+        local displayStars = ""
+        
+        if stars >= 1000000000000000000 then
+            displayStars = string.format("%.1fQn", stars / 1000000000000000000)
+        elseif stars >= 1000000000000000 then
+            displayStars = string.format("%.1fQd", stars / 1000000000000000)
+        elseif stars >= 1000000000000 then
+            displayStars = string.format("%.1fT", stars / 1000000000000)
+        elseif stars >= 1000000000 then
+            displayStars = string.format("%.1fB", stars / 1000000000)
+        elseif stars >= 1000000 then
+            displayStars = string.format("%.1fM", stars / 1000000)
+        elseif stars >= 1000 then
+            displayStars = string.format("%.1fK", stars / 1000)
+        else
+            displayStars = tostring(stars)
+        end
+        
+        CurrencyStatus:SetTitle("Current Stars: " .. displayStars)
+        CurrencyStatus:SetDesc("Your current Stars currency for hatching.")
+    end
 end)
 
 -- Auto-load config on startup
