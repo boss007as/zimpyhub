@@ -137,9 +137,9 @@ local function detectCurrentWorld()
     enemiesFolder = enemiesFolder:FindFirstChild("World")
     if not enemiesFolder then return "" end
     
-    -- Check all worlds for nearby enemies
+    -- Check all worlds simultaneously for nearby enemies (optimized)
     for _, worldFolder in pairs(enemiesFolder:GetChildren()) do
-        if worldFolder:IsA("Folder") then
+        if worldFolder:IsA("Folder") and #worldFolder:GetChildren() > 0 then -- Only check worlds with content
             for _, part in pairs(worldFolder:GetChildren()) do
                 if part:IsA("BasePart") and part:GetAttribute("ID") then
                     local died = part:GetAttribute("Died")
@@ -316,7 +316,7 @@ local function updateCharacterReferences()
     rootPart = character:WaitForChild("HumanoidRootPart")
 end
 
--- World Detection System
+-- World Detection System (Optimized)
 local function startWorldDetection()
     if worldDetectionConnection then
         worldDetectionConnection:Disconnect()
@@ -324,7 +324,7 @@ local function startWorldDetection()
     
     worldDetectionConnection = RunService.Heartbeat:Connect(function()
         if autoAttackEnabled then
-            wait(1) -- Check every second
+            wait(0.5) -- Check twice per second for faster detection
             
             -- Update character references if needed
             if not character.Parent then
@@ -348,6 +348,8 @@ local function startWorldDetection()
                         Duration = 3,
                     })
                     isInSleepMode = false
+                    -- Immediately find first target
+                    switchToNextTarget()
                 else
                     WorldStatus:SetTitle("Current World: Not Detected")
                     WorldStatus:SetDesc("No enemies found within 100 studs. Move closer to enemies.")
@@ -380,10 +382,9 @@ local function startAutoAttack()
                     local health = currentTarget.part:GetAttribute("Health") or currentTarget.part.Health
                     
                     if died or not health or health <= 0 then
-                        -- Target died, clear it immediately
-                        print("Target died during attack - clearing target")
-                        currentTarget = nil
-                        tooFarNotified = false
+                        -- Target died, immediately switch to next target
+                        print("Target died during attack - switching to next target")
+                        switchToNextTarget()
                         return
                     end
                     
@@ -416,10 +417,9 @@ local function startAutoAttack()
                         end
                     end
                 else
-                    -- Target part no longer exists, clear target
-                    print("Target part no longer exists - clearing target")
-                    currentTarget = nil
-                    tooFarNotified = false
+                    -- Target part no longer exists, switch to next target
+                    print("Target part no longer exists - switching to next target")
+                    switchToNextTarget()
                 end
             end
         end
@@ -449,6 +449,42 @@ local function stopAutoAttack()
     tooFarNotified = false
 end
 
+local function findNextTarget()
+    if detectedWorld == "" then return nil end
+    
+    local enemies = getEnemiesInWorld(detectedWorld)
+    if #enemies == 0 then return nil end
+    
+    return findBestTarget(enemies)
+end
+
+local function switchToNextTarget()
+    local newTarget = findNextTarget()
+    if newTarget then
+        currentTarget = newTarget
+        tooFarNotified = false -- Reset notification for new target
+        lastNotifiedTarget = nil -- Reset last notified target
+        
+        -- Move to new target immediately
+        if movementType ~= "Idle" then
+            moveToTarget(currentTarget)
+        end
+        
+        WindUI:Notify({
+            Title = "Target Switched",
+            Content = "New target: " .. currentTarget.health .. " HP",
+            Icon = "arrow-right",
+            Duration = 1,
+        })
+        print("Switched to new target with ID: " .. currentTarget.id)
+        return true
+    else
+        currentTarget = nil
+        print("No valid targets found")
+        return false
+    end
+end
+
 local function startHealthMonitoring()
     if healthCheckConnection then
         healthCheckConnection:Disconnect()
@@ -456,78 +492,37 @@ local function startHealthMonitoring()
     
     healthCheckConnection = RunService.Heartbeat:Connect(function()
         if autoAttackEnabled and detectedWorld ~= "" and not isInSleepMode then
-            wait(0.1) -- Check more frequently for immediate target switching
+            wait(0.05) -- Check even more frequently for instant switching
             
             -- Update character references if needed
             if not character.Parent then
                 updateCharacterReferences()
             end
             
-            local enemies = getEnemiesInWorld(detectedWorld)
-            
-            if #enemies == 0 then
-                currentTarget = nil
-                -- Don't spam notifications, let world detection handle it
-                return
-            end
-            
-            -- Check if current target is still valid (immediate check)
-            local currentStillValid = false
+            -- If we have a current target, validate it immediately
             if currentTarget then
-                -- First check if the target part still exists and has the ID
-                local targetFound = false
-                for _, enemy in pairs(enemies) do
-                    if enemy.id == currentTarget.id then
-                        targetFound = true
-                        -- Check if enemy died or has no health
-                        local died = enemy.part:GetAttribute("Died")
-                        local health = enemy.part:GetAttribute("Health") or enemy.part.Health
-                        
-                        if not died and health and health > 0 then
-                            currentTarget = enemy -- Update health and position
-                            currentStillValid = true
-                        else
-                            -- Enemy died or has 0 health
-                            print("Enemy died or has no health - switching target")
-                            currentTarget = nil
-                            currentStillValid = false
-                        end
-                        break
-                    end
-                end
-                
-                -- If target not found in enemies list, it's dead/gone
-                if not targetFound then
-                    print("Target not found in enemies list - switching target")
-                    currentTarget = nil
-                    currentStillValid = false
-                end
-            end
-            
-            -- Find new target immediately if current is invalid or died
-            if not currentStillValid then
-                local newTarget = findBestTarget(enemies)
-                if newTarget then
-                    currentTarget = newTarget
-                    tooFarNotified = false -- Reset notification for new target
-                    lastNotifiedTarget = nil -- Reset last notified target
+                -- Check if target part still exists and is valid
+                if currentTarget.part and currentTarget.part.Parent then
+                    local died = currentTarget.part:GetAttribute("Died")
+                    local health = currentTarget.part:GetAttribute("Health") or currentTarget.part.Health
                     
-                    -- Move to new target immediately
-                    if movementType ~= "Idle" then
-                        moveToTarget(currentTarget)
+                    if died or not health or health <= 0 then
+                        -- Target died - immediately switch to next target
+                        print("Target died - immediately switching to next target")
+                        switchToNextTarget()
+                    else
+                        -- Update current target's health and position
+                        currentTarget.health = health
+                        currentTarget.position = currentTarget.part.Position
                     end
-                    
-                    WindUI:Notify({
-                        Title = "Target Switched",
-                        Content = "New target: " .. currentTarget.health .. " HP",
-                        Icon = "arrow-right",
-                        Duration = 1,
-                    })
-                    print("Switched to new target with ID: " .. currentTarget.id)
                 else
-                    currentTarget = nil
-                    print("No valid targets found")
+                    -- Target part no longer exists - immediately switch
+                    print("Target part no longer exists - immediately switching to next target")
+                    switchToNextTarget()
                 end
+            else
+                -- No current target, find one
+                switchToNextTarget()
             end
         end
     end)
