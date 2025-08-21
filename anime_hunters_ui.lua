@@ -23,7 +23,7 @@ local isWalkingToTarget = false
 
 -- Variables for Auto Join Mode
 local autoJoinEnabled = false
-local selectedMode = ""
+local selectedModes = {}
 local autoLeaveEnabled = false
 local leaveAtTime = 30
 local currentPlayerMode = ""
@@ -1327,24 +1327,25 @@ local ModeStatus = Tabs.GamemodeTab:Paragraph({
 
 -- Gamemode Selection
 local GamemodeDropdown = Tabs.GamemodeTab:Dropdown({
-    Title = "Select Gamemode",
-    Desc = "Choose which gamemode to auto-join when it opens",
+    Title = "Select Gamemodes",
+    Desc = "Choose which gamemodes to auto-join when they open (can select multiple)",
     Icon = "gamepad-2",
     Values = getAvailableGamemodes(),
-    Value = "",
+    Value = {},
+    Multi = true,
     AllowNone = true,
-    Callback = function(mode)
-        selectedMode = mode or ""
-        if selectedMode ~= "" then
+    Callback = function(modes)
+        selectedModes = modes or {}
+        if #selectedModes > 0 then
             WindUI:Notify({
-                Title = "Gamemode Selected",
-                Content = "Will auto-join: " .. selectedMode,
+                Title = "Gamemodes Selected",
+                Content = "Will auto-join " .. #selectedModes .. " gamemode(s)",
                 Icon = "target",
                 Duration = 2,
             })
         else
             WindUI:Notify({
-                Title = "No Gamemode",
+                Title = "No Gamemodes",
                 Content = "Auto-join disabled",
                 Icon = "x",
                 Duration = 2,
@@ -1356,16 +1357,16 @@ local GamemodeDropdown = Tabs.GamemodeTab:Dropdown({
 -- Auto Join Toggle
 local AutoJoinToggle = Tabs.GamemodeTab:Toggle({
     Title = "Auto Join",
-    Desc = "Automatically join selected gamemode when it opens",
+    Desc = "Automatically join selected gamemodes when they open",
     Icon = "log-in",
     Value = false,
     Callback = function(state)
         autoJoinEnabled = state
         if state then
-            if selectedMode == "" then
+            if #selectedModes == 0 then
                 WindUI:Notify({
                     Title = "Error",
-                    Content = "Please select a gamemode first!",
+                    Content = "Please select at least one gamemode first!",
                     Icon = "alert-triangle",
                     Duration = 3,
                 })
@@ -1375,7 +1376,7 @@ local AutoJoinToggle = Tabs.GamemodeTab:Toggle({
             
             WindUI:Notify({
                 Title = "Auto Join Enabled",
-                Content = "Will auto-join " .. selectedMode .. " when it opens",
+                Content = "Will auto-join " .. #selectedModes .. " gamemode(s) when they open",
                 Icon = "check",
                 Duration = 3,
             })
