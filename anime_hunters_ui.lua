@@ -19,6 +19,7 @@ local lastNotifiedTarget = nil
 local tooFarNotified = false
 local targetDeathConnection = nil
 local targetHealthConnection = nil
+local lockTarget = false
 
 -- Variables for Auto Join Mode
 local autoJoinEnabled = false
@@ -667,10 +668,12 @@ local function getAllEnemiesInRadius()
                                 local distance = (playerPos - part.Position).Magnitude
                                 
                                 if not died and health and health > 0 and distance <= 1000 then
+                                    -- Convert health to number if it's a string
+                                    local numericHealth = tonumber(health) or 0
                                     table.insert(enemies, {
                                         part = part,
                                         id = part:GetAttribute("ID"),
-                                        health = health,
+                                        health = numericHealth,
                                         position = part.Position,
                                         name = part.Name,
                                         distance = distance
@@ -700,10 +703,12 @@ local function getAllEnemiesInRadius()
                                     local distance = (playerPos - part.Position).Magnitude
                                     
                                     if not died and health and health > 0 and distance <= 1000 then
+                                        -- Convert health to number if it's a string
+                                        local numericHealth = tonumber(health) or 0
                                         table.insert(enemies, {
                                             part = part,
                                             id = part:GetAttribute("ID"),
-                                            health = health,
+                                            health = numericHealth,
                                             position = part.Position,
                                             name = part.Name,
                                             distance = distance,
@@ -723,6 +728,22 @@ local function getAllEnemiesInRadius()
 end
 
 local function findNextTarget()
+    -- If target is locked and still valid, keep attacking it
+    if lockTarget and currentTarget then
+        if currentTarget.part and currentTarget.part.Parent then
+            local died = currentTarget.part:GetAttribute("Died")
+            local health = currentTarget.part:GetAttribute("Health") or currentTarget.part.Health
+            if not died and health and health > 0 then
+                -- Update locked target's position and health
+                currentTarget.position = currentTarget.part.Position
+                currentTarget.health = tonumber(health) or 0
+                return currentTarget
+            end
+        end
+        -- Locked target is dead/invalid, unlock and find new target
+        lockTarget = false
+    end
+    
     local enemies = getAllEnemiesInRadius()
     if #enemies == 0 then return nil end
     
@@ -1137,6 +1158,31 @@ local TweenSpeedSlider = Tabs.MainTab:Slider({
 
 Tabs.MainTab:Divider()
 
+local LockTargetToggle = Tabs.MainTab:Toggle({
+    Title = "Lock Target",
+    Desc = "Lock onto current target and don't switch to other enemies",
+    Icon = "lock",
+    Value = false,
+    Callback = function(state)
+        lockTarget = state
+        if state and currentTarget then
+            WindUI:Notify({
+                Title = "Target Locked",
+                Content = "Locked onto: " .. currentTarget.name,
+                Icon = "lock",
+                Duration = 2,
+            })
+        elseif not state then
+            WindUI:Notify({
+                Title = "Target Unlocked",
+                Content = "Will switch targets normally",
+                Icon = "unlock",
+                Duration = 2,
+            })
+        end
+    end
+})
+
 local AutoAttackToggle = Tabs.MainTab:Toggle({
     Title = "Auto Attack",
     Desc = "Enable/disable automatic enemy targeting and attacking within 1000 studs",
@@ -1157,6 +1203,8 @@ local AutoAttackToggle = Tabs.MainTab:Toggle({
         else
             stopAutoAttack()
             stopModeMonitoring()
+            lockTarget = false -- Unlock target when stopping
+            LockTargetToggle:SetValue(false)
             WindUI:Notify({
                 Title = "Auto Attack",
                 Content = "Auto Attack disabled!",
@@ -1254,6 +1302,7 @@ myConfig:Register("selectedEnemyNames", EnemyNameDropdown)
 myConfig:Register("targetingMode", TargetingDropdown)
 myConfig:Register("movementType", MovementDropdown)
 myConfig:Register("tweenSpeed", TweenSpeedSlider)
+myConfig:Register("lockTarget", LockTargetToggle)
 
 Tabs.ConfigTab:Paragraph({
     Title = "Configuration Management",
@@ -1306,6 +1355,7 @@ Tabs.ConfigTab:Button({
         TargetingDropdown:Select("Nearest")
         MovementDropdown:Select("Idle")
         TweenSpeedSlider:SetValue(1.0)
+        LockTargetToggle:SetValue(false)
         
         autoAttackEnabled = false
         autoAttackSpeed = 0.1
@@ -1313,6 +1363,7 @@ Tabs.ConfigTab:Button({
         targetingMode = "Nearest"
         movementType = "Idle"
         tweenSpeed = 1.0
+        lockTarget = false
         currentTarget = nil
         tooFarNotified = false
         
