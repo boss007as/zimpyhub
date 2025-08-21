@@ -142,6 +142,32 @@ volume_sma_20 = ta.sma(volume, 20)
 close_sma_50 = ta.sma(close, 50)
 
 // ============================================================================
+// GLOBAL VARIABLES DECLARATION
+// ============================================================================
+
+// Backtesting variables - must be declared early
+var int total_trades = 0
+var int winning_trades = 0
+var int losing_trades = 0
+var float total_profit = 0.0
+var float entry_price = 0.0
+var int entry_bar = 0
+var bool in_long_position = false
+var bool in_short_position = false
+
+// Performance metrics
+var float win_rate = 0.0
+var float avg_profit_per_trade = 0.0
+var float profit_factor = 0.0
+
+// Table declarations
+var table performance_dashboard = table.new(position.top_left, 2, 6, bgcolor=color.white, border_width=1)
+var table trading_dashboard = table.new(position.top_right, 2, 8, bgcolor=color.white, border_width=1)
+
+// Elliott Wave color variable
+wave_color = color.gray  // Will be updated based on current wave
+
+// ============================================================================
 // CHART PATTERN DETECTION
 // ============================================================================
 
@@ -278,6 +304,19 @@ range_mid = (range_high + range_low) / 2
 premium_zone = close > range_mid + (range_high - range_mid) * 0.5  // Upper 25%
 discount_zone = close < range_mid - (range_mid - range_low) * 0.5  // Lower 25%
 fair_value_zone = not premium_zone and not discount_zone
+
+// Divergence Detection (moved here to be available for confluence zones)
+// Price making higher highs but indicators making lower highs (bearish divergence)
+price_higher_high = high > ta.highest(high, 20)[1]
+rsi_lower_high = rsi < ta.highest(rsi, 20)[1] and rsi > 50
+macd_lower_high = macd_line < ta.highest(macd_line, 20)[1] and macd_line > 0
+bearish_divergence = price_higher_high and (rsi_lower_high or macd_lower_high)
+
+// Price making lower lows but indicators making higher lows (bullish divergence)
+price_lower_low = low < ta.lowest(low, 20)[1]
+rsi_higher_low = rsi > ta.lowest(rsi, 20)[1] and rsi < 50
+macd_higher_low = macd_line > ta.lowest(macd_line, 20)[1] and macd_line < 0
+bullish_divergence = price_lower_low and (rsi_higher_low or macd_higher_low)
 
 // Smart Money Flow Indicator (LuxAlgo Style)
 // Combines volume, price action, and market structure
@@ -838,15 +877,7 @@ if true
 // BACKTESTING AND TRADE TRACKING
 // ============================================================================
 
-// Trade tracking variables
-var int total_trades = 0
-var int winning_trades = 0
-var int losing_trades = 0
-var float total_profit = 0.0
-var float entry_price = 0.0
-var int entry_bar = 0
-var bool in_long_position = false
-var bool in_short_position = false
+// Trade tracking variables already declared globally above
 
 // Execute trades based on signals
 if buy_signal and not in_long_position and not in_short_position
@@ -921,10 +952,10 @@ if in_short_position
             
         in_short_position := false
 
-// Calculate performance metrics
-win_rate = total_trades > 0 ? (winning_trades / total_trades) * 100 : 0
-avg_profit_per_trade = total_trades > 0 ? total_profit / total_trades : 0
-profit_factor = losing_trades > 0 and winning_trades > 0 ? winning_trades / losing_trades : 0
+// Calculate performance metrics (update the var variables)
+win_rate := total_trades > 0 ? (winning_trades / total_trades) * 100 : 0
+avg_profit_per_trade := total_trades > 0 ? total_profit / total_trades : 0
+profit_factor := losing_trades > 0 and winning_trades > 0 ? winning_trades / losing_trades : 0
 
 // ============================================================================
 // PLOTTING AND VISUALIZATION
@@ -943,10 +974,10 @@ fill(p1, p2, color=color.new(color.gray, 90), title="BB Fill")
 // ELLIOTT WAVE VISUALIZATION & PRICE LEVELS
 // ============================================================================
 
-// Plot Elliott Wave Current Position
-wave_color = current_wave == 1 ? color.green : current_wave == 2 ? color.orange : 
-             current_wave == 3 ? color.blue : current_wave == 4 ? color.yellow : 
-             current_wave == 5 ? color.red : color.gray
+// Update Elliott Wave Current Position Color
+wave_color := current_wave == 1 ? color.green : current_wave == 2 ? color.orange : 
+   current_wave == 3 ? color.blue : current_wave == 4 ? color.yellow : 
+   current_wave == 5 ? color.red : color.gray
 
 // ============================================================================
 // CONSOLIDATED ELLIOTT WAVE DISPLAY - Single Clean Label
@@ -1215,10 +1246,4 @@ alertcondition(rectangle_breakout_bear, title="Rectangle Breakout Bear Alert", m
 // TABLE WITH CURRENT SCORES
 // ============================================================================
 
-// ============================================================================
-// CLEAN PERFORMANCE DASHBOARD
-// ============================================================================
-
-// Create clean, useful tables
-var table performance_dashboard = table.new(position.top_left, 2, 6, bgcolor=color.white, border_width=1)
-var table trading_dashboard = table.new(position.top_right, 2, 8, bgcolor=color.white, border_width=1)
+// Tables already declared globally above
