@@ -94,6 +94,12 @@ Tabs.MainSection = Window:Section({
     Opened = true,
 })
 
+Tabs.GamemodeSection = Window:Section({
+    Title = "Auto Join Modes",
+    Icon = "gamepad-2",
+    Opened = true,
+})
+
 Tabs.ConfigSection = Window:Section({
     Title = "Configuration",
     Icon = "settings",
@@ -104,6 +110,12 @@ Tabs.MainTab = Tabs.MainSection:Tab({
     Title = "Auto Attack", 
     Icon = "zap", 
     Desc = "Configure auto attack settings" 
+})
+
+Tabs.GamemodeTab = Tabs.GamemodeSection:Tab({ 
+    Title = "Auto Join", 
+    Icon = "log-in", 
+    Desc = "Auto join dungeons and gamemodes" 
 })
 
 Tabs.ConfigTab = Tabs.ConfigSection:Tab({ 
@@ -948,14 +960,21 @@ local function startModeMonitoring()
             -- Reset current target when mode changes
             currentTarget = nil
             disconnectTargetMonitoring()
+            isWalkingToTarget = false
             
+            -- Update status display
             if currentPlayerMode ~= "World" then
+                ModeStatus:SetTitle("Current Mode: " .. currentPlayerMode)
+                ModeStatus:SetDesc("Currently in gamemode. Auto-targeting gamemode enemies.")
                 WindUI:Notify({
                     Title = "Mode Changed",
                     Content = "Now in: " .. currentPlayerMode,
                     Icon = "gamepad-2",
                     Duration = 2,
                 })
+            else
+                ModeStatus:SetTitle("Current Mode: World")
+                ModeStatus:SetDesc("Not in any gamemode currently.")
             end
         end
     end)
@@ -1290,6 +1309,158 @@ Tabs.MainTab:Button({
     end
 })
 
+-- Gamemode Tab Elements
+Tabs.GamemodeTab:Paragraph({
+    Title = "Auto Join Gamemode System",
+    Desc = "Automatically join dungeons and gamemodes when they open. Save your location and auto-return when leaving.",
+    Image = "gamepad-2",
+    Color = "Green",
+})
+
+-- Status Display
+local ModeStatus = Tabs.GamemodeTab:Paragraph({
+    Title = "Current Mode: World",
+    Desc = "Not in any gamemode currently.",
+    Image = "map",
+    Color = "Grey",
+})
+
+-- Gamemode Selection
+local GamemodeDropdown = Tabs.GamemodeTab:Dropdown({
+    Title = "Select Gamemode",
+    Desc = "Choose which gamemode to auto-join when it opens",
+    Icon = "gamepad-2",
+    Values = getAvailableGamemodes(),
+    Value = "",
+    AllowNone = true,
+    Callback = function(mode)
+        selectedMode = mode or ""
+        if selectedMode ~= "" then
+            WindUI:Notify({
+                Title = "Gamemode Selected",
+                Content = "Will auto-join: " .. selectedMode,
+                Icon = "target",
+                Duration = 2,
+            })
+        else
+            WindUI:Notify({
+                Title = "No Gamemode",
+                Content = "Auto-join disabled",
+                Icon = "x",
+                Duration = 2,
+            })
+        end
+    end
+})
+
+-- Auto Join Toggle
+local AutoJoinToggle = Tabs.GamemodeTab:Toggle({
+    Title = "Auto Join",
+    Desc = "Automatically join selected gamemode when it opens",
+    Icon = "log-in",
+    Value = false,
+    Callback = function(state)
+        autoJoinEnabled = state
+        if state then
+            if selectedMode == "" then
+                WindUI:Notify({
+                    Title = "Error",
+                    Content = "Please select a gamemode first!",
+                    Icon = "alert-triangle",
+                    Duration = 3,
+                })
+                AutoJoinToggle:SetValue(false)
+                return
+            end
+            
+            WindUI:Notify({
+                Title = "Auto Join Enabled",
+                Content = "Will auto-join " .. selectedMode .. " when it opens",
+                Icon = "check",
+                Duration = 3,
+            })
+        else
+            WindUI:Notify({
+                Title = "Auto Join Disabled",
+                Content = "Will not auto-join gamemodes",
+                Icon = "x",
+                Duration = 2,
+            })
+        end
+    end
+})
+
+-- Auto Leave Toggle
+local AutoLeaveToggle = Tabs.GamemodeTab:Toggle({
+    Title = "Auto Leave",
+    Desc = "Automatically leave gamemode when timer reaches specified time",
+    Icon = "log-out",
+    Value = false,
+    Callback = function(state)
+        autoLeaveEnabled = state
+        if state then
+            WindUI:Notify({
+                Title = "Auto Leave Enabled",
+                Content = "Will auto-leave at " .. leaveAtTime .. " seconds remaining",
+                Icon = "clock",
+                Duration = 2,
+            })
+        else
+            WindUI:Notify({
+                Title = "Auto Leave Disabled",
+                Content = "Will not auto-leave gamemodes",
+                Icon = "x",
+                Duration = 2,
+            })
+        end
+    end
+})
+
+-- Leave Time Slider
+local LeaveTimeSlider = Tabs.GamemodeTab:Slider({
+    Title = "Leave At Time",
+    Desc = "Leave gamemode when timer reaches this many seconds remaining",
+    Value = {
+        Min = 5,
+        Max = 120,
+        Default = 30,
+    },
+    Step = 5,
+    Callback = function(value)
+        leaveAtTime = tonumber(value) or 30
+    end
+})
+
+Tabs.GamemodeTab:Divider()
+
+-- Location Management
+Tabs.GamemodeTab:Button({
+    Title = "Save Current Location",
+    Desc = "Save your current position for auto-return when leaving gamemodes",
+    Icon = "map-pin",
+    Callback = function()
+        saveCurrentLocation()
+    end
+})
+
+Tabs.GamemodeTab:Button({
+    Title = "Teleport to Saved Location",
+    Desc = "Manually teleport back to your saved location",
+    Icon = "home",
+    Callback = function()
+        teleportToSavedLocation()
+    end
+})
+
+Tabs.GamemodeTab:Button({
+    Title = "Leave Current Gamemode",
+    Desc = "Manually leave the current gamemode and return to saved location",
+    Icon = "log-out",
+    Callback = function()
+        leaveGamemode()
+    end
+})
+
 -- Config Tab Elements
 local HttpService = game:GetService("HttpService")
 
@@ -1304,6 +1475,10 @@ myConfig:Register("selectedEnemyNames", EnemyNameDropdown)
 myConfig:Register("targetingMode", TargetingDropdown)
 myConfig:Register("movementType", MovementDropdown)
 myConfig:Register("tweenSpeed", TweenSpeedSlider)
+myConfig:Register("selectedMode", GamemodeDropdown)
+myConfig:Register("autoJoinEnabled", AutoJoinToggle)
+myConfig:Register("autoLeaveEnabled", AutoLeaveToggle)
+myConfig:Register("leaveAtTime", LeaveTimeSlider)
 
 Tabs.ConfigTab:Paragraph({
     Title = "Configuration Management",
@@ -1356,6 +1531,10 @@ Tabs.ConfigTab:Button({
         TargetingDropdown:Select("Nearest")
         MovementDropdown:Select("Idle")
         TweenSpeedSlider:SetValue(1.0)
+        GamemodeDropdown:Select("")
+        AutoJoinToggle:SetValue(false)
+        AutoLeaveToggle:SetValue(false)
+        LeaveTimeSlider:SetValue(30)
         
         autoAttackEnabled = false
         autoAttackSpeed = 0.1
@@ -1363,8 +1542,13 @@ Tabs.ConfigTab:Button({
         targetingMode = "Nearest"
         movementType = "Idle"
         tweenSpeed = 1.0
+        selectedMode = ""
+        autoJoinEnabled = false
+        autoLeaveEnabled = false
+        leaveAtTime = 30
         currentTarget = nil
         tooFarNotified = false
+        isWalkingToTarget = false
         
         stopAutoAttack()
         
