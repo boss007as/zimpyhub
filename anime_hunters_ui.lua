@@ -543,28 +543,52 @@ local function monitorTargetChanges(target)
     
     if not target or not target.part then return end
     
+    print("Setting up monitoring for target: " .. target.name .. " (ID: " .. target.id .. ")")
+    
     -- Monitor Died attribute changes
-    targetDeathConnection = target.part:GetAttributeChangedSignal("Died"):Connect(function()
-        local died = target.part:GetAttribute("Died")
-        if died then
-            print("Target died - attribute changed to true, switching immediately")
-            switchToNextTarget()
-        end
+    local success1, err1 = pcall(function()
+        targetDeathConnection = target.part:GetAttributeChangedSignal("Died"):Connect(function()
+            local died = target.part:GetAttribute("Died")
+            print("Died attribute changed to: " .. tostring(died))
+            if died == true then
+                print("Target died - attribute changed to true, switching immediately")
+                -- Use spawn to prevent recursive issues
+                spawn(function()
+                    switchToNextTarget()
+                end)
+            end
+        end)
     end)
     
+    if not success1 then
+        print("Failed to set up Died attribute monitoring: " .. tostring(err1))
+    end
+    
     -- Monitor Health attribute changes
-    targetHealthConnection = target.part:GetAttributeChangedSignal("Health"):Connect(function()
-        local health = target.part:GetAttribute("Health")
-        if not health or health <= 0 then
-            print("Target health reached 0, switching immediately")
-            switchToNextTarget()
-        else
-            -- Update current target health
-            if currentTarget then
-                currentTarget.health = health
+    local success2, err2 = pcall(function()
+        targetHealthConnection = target.part:GetAttributeChangedSignal("Health"):Connect(function()
+            local health = target.part:GetAttribute("Health")
+            print("Health attribute changed to: " .. tostring(health))
+            if not health or health <= 0 then
+                print("Target health reached 0, switching immediately")
+                -- Use spawn to prevent recursive issues
+                spawn(function()
+                    switchToNextTarget()
+                end)
+            else
+                -- Update current target health
+                if currentTarget then
+                    currentTarget.health = health
+                end
             end
-        end
+        end)
     end)
+    
+    if not success2 then
+        print("Failed to set up Health attribute monitoring: " .. tostring(err2))
+    end
+    
+    print("Monitoring setup complete for target")
 end
 
 local function switchToNextTarget()
@@ -605,25 +629,38 @@ local function startHealthMonitoring()
         healthCheckConnection:Disconnect()
     end
     
-    -- Lighter monitoring - just check for new targets and part existence
+    -- Backup monitoring system - checks for death and part existence
     healthCheckConnection = RunService.Heartbeat:Connect(function()
         if autoAttackEnabled and #selectedWorlds > 0 then
-            wait(0.5) -- Less frequent checking since we use attribute change signals
+            wait(0.2) -- Check more frequently as backup to attribute signals
             
             -- Update character references if needed
             if not character.Parent then
                 updateCharacterReferences()
             end
             
-            -- If we have a current target, just check if part still exists
+            -- If we have a current target, validate it
             if currentTarget then
                 if not currentTarget.part or not currentTarget.part.Parent then
                     -- Target part no longer exists - immediately switch
-                    print("Target part no longer exists - immediately switching to next target")
+                    print("Backup check: Target part no longer exists - switching to next target")
                     switchToNextTarget()
                 else
-                    -- Update current target's position
-                    currentTarget.position = currentTarget.part.Position
+                    -- Backup death check in case attribute signals fail
+                    local died = currentTarget.part:GetAttribute("Died")
+                    local health = currentTarget.part:GetAttribute("Health") or currentTarget.part.Health
+                    
+                    if died == true then
+                        print("Backup check: Target died (Died=true) - switching to next target")
+                        switchToNextTarget()
+                    elseif not health or health <= 0 then
+                        print("Backup check: Target health <= 0 - switching to next target")
+                        switchToNextTarget()
+                    else
+                        -- Update current target's position and health
+                        currentTarget.position = currentTarget.part.Position
+                        currentTarget.health = health
+                    end
                 end
             else
                 -- No current target, find one
@@ -928,6 +965,53 @@ Tabs.MainTab:Button({
             WindUI:Notify({
                 Title = "No Worlds Selected",
                 Content = "Please select worlds first!",
+                Icon = "alert-triangle",
+                Duration = 2,
+            })
+        end
+    end
+})
+
+Tabs.MainTab:Button({
+    Title = "Debug: Current Target Status",
+    Desc = "Show current target's status and attributes",
+    Icon = "crosshair",
+    Callback = function()
+        if currentTarget then
+            print("=== Current Target Debug ===")
+            print("Name: " .. currentTarget.name)
+            print("ID: " .. currentTarget.id)
+            print("Health: " .. currentTarget.health)
+            print("Position: " .. tostring(currentTarget.position))
+            
+            if currentTarget.part and currentTarget.part.Parent then
+                local died = currentTarget.part:GetAttribute("Died")
+                local health = currentTarget.part:GetAttribute("Health")
+                print("Part exists: true")
+                print("Died attribute: " .. tostring(died))
+                print("Health attribute: " .. tostring(health))
+                print("Part Health property: " .. tostring(currentTarget.part.Health))
+                
+                WindUI:Notify({
+                    Title = "Current Target",
+                    Content = currentTarget.name .. " - Died: " .. tostring(died) .. " HP: " .. tostring(health),
+                    Icon = "target",
+                    Duration = 3,
+                })
+            else
+                print("Part exists: false")
+                WindUI:Notify({
+                    Title = "Current Target",
+                    Content = "Target part no longer exists!",
+                    Icon = "x",
+                    Duration = 2,
+                })
+            end
+        else
+            print("No current target")
+            WindUI:Notify({
+                Title = "No Target",
+                Content = "No current target selected",
                 Icon = "alert-triangle",
                 Duration = 2,
             })
