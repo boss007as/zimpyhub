@@ -19,6 +19,7 @@ local lastNotifiedTarget = nil
 local tooFarNotified = false
 local targetDeathConnection = nil
 local targetHealthConnection = nil
+local isWalkingToTarget = false
 
 -- Variables for Auto Join Mode
 local autoJoinEnabled = false
@@ -539,26 +540,41 @@ end
 local function moveToTarget(target)
     if not target or movementType == "Idle" then return end
     
+    -- Don't move if already close enough
+    local distance = (rootPart.Position - target.position).Magnitude
+    if distance <= 10 then
+        isWalkingToTarget = false
+        return
+    end
+    
     local targetPos = target.position
     local offset = Vector3.new(
-        math.random(-10, 10),
+        math.random(-8, 8),
         0,
-        math.random(-10, 10)
+        math.random(-8, 8)
     )
     local finalPos = targetPos + offset
     
     if movementType == "TP" then
         rootPart.CFrame = CFrame.new(finalPos)
+        isWalkingToTarget = false
         
     elseif movementType == "Tween" then
         local tweenInfo = TweenInfo.new(tweenSpeed, Enum.EasingStyle.Linear)
         local tween = TweenService:Create(rootPart, tweenInfo, {CFrame = CFrame.new(finalPos)})
         tween:Play()
         
+        tween.Completed:Connect(function()
+            isWalkingToTarget = false
+        end)
+        
     elseif movementType == "Walk" then
         if movementConnection then
             movementConnection:Disconnect()
+            movementConnection = nil
         end
+        
+        isWalkingToTarget = true
         
         local success, err = pcall(function()
             local path = PathfindingService:CreatePath()
@@ -569,12 +585,26 @@ local function moveToTarget(target)
                 
                 local waypointIndex = 1
                 movementConnection = RunService.Heartbeat:Connect(function()
-                    if waypointIndex <= #waypoints and autoAttackEnabled then
+                    -- Stop if we're close enough to target (10 studs)
+                    if currentTarget then
+                        local currentDistance = (rootPart.Position - currentTarget.position).Magnitude
+                        if currentDistance <= 10 then
+                            if movementConnection then
+                                movementConnection:Disconnect()
+                                movementConnection = nil
+                            end
+                            isWalkingToTarget = false
+                            humanoid:MoveTo(rootPart.Position) -- Stop moving
+                            return
+                        end
+                    end
+                    
+                    if waypointIndex <= #waypoints and autoAttackEnabled and isWalkingToTarget then
                         local waypoint = waypoints[waypointIndex]
                         humanoid:MoveTo(waypoint.Position)
                         
-                        local distance = (rootPart.Position - waypoint.Position).Magnitude
-                        if distance < 5 then
+                        local waypointDistance = (rootPart.Position - waypoint.Position).Magnitude
+                        if waypointDistance < 5 then
                             waypointIndex = waypointIndex + 1
                         end
                     else
@@ -582,13 +612,17 @@ local function moveToTarget(target)
                             movementConnection:Disconnect()
                             movementConnection = nil
                         end
+                        isWalkingToTarget = false
                     end
                 end)
+            else
+                isWalkingToTarget = false
             end
         end)
         
         if not success then
             warn("Pathfinding failed: " .. tostring(err))
+            isWalkingToTarget = false
         end
     end
 end
@@ -733,6 +767,24 @@ local function getAllEnemiesInRadius()
 end
 
 local function findNextTarget()
+    -- Don't switch targets while walking to prevent back-and-forth movement
+    if isWalkingToTarget and currentTarget then
+        -- Check if current target is still valid
+        if currentTarget.part and currentTarget.part.Parent then
+            local died = currentTarget.part:GetAttribute("Died")
+            local health = currentTarget.part:GetAttribute("Health") or currentTarget.part.Health
+            if not died and health and health > 0 then
+                return currentTarget -- Keep current target while walking
+            end
+        end
+        -- Current target died while walking, stop walking and find new target
+        isWalkingToTarget = false
+        if movementConnection then
+            movementConnection:Disconnect()
+            movementConnection = nil
+        end
+    end
+    
     local enemies = getAllEnemiesInRadius()
     if #enemies == 0 then return nil end
     
@@ -840,20 +892,8 @@ local function startAutoAttack()
             lastAttackTime = currentTime
             tooFarNotified = false -- Reset notification flag when in range
         else
-            -- Player is too far from target
-            if not tooFarNotified or lastNotifiedTarget ~= currentTarget.id then
-                WindUI:Notify({
-                    Title = "Too Far",
-                    Content = "Move closer to attack (within 10 studs)",
-                    Icon = "move",
-                    Duration = 2,
-                })
-                tooFarNotified = true
-                lastNotifiedTarget = currentTarget.id
-            end
-            
-            -- Auto move closer if not idle
-            if movementType ~= "Idle" then
+            -- Player is too far from target - auto move closer if not idle
+            if movementType ~= "Idle" and not isWalkingToTarget then
                 moveToTarget(currentTarget)
             end
         end
@@ -876,6 +916,7 @@ local function stopAutoAttack()
     disconnectTargetMonitoring()
     currentTarget = nil
     tooFarNotified = false
+    isWalkingToTarget = false
 end
 
 -- Monitor gamemode status and player mode
