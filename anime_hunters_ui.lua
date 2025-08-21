@@ -487,12 +487,23 @@ end
 -- Join selected gamemode
 local function joinGamemode(modeName)
     local success, err = pcall(function()
-        local args = {
-            "Gamemodes",
-            modeName,
-            "Join"
-        }
-        game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Signal"):FireServer(unpack(args))
+        -- Check if it's a raid (different join structure)
+        if modeName:lower():find("raid") then
+            local args = {
+                "Gamemodes",
+                "Raid",
+                "Join"
+            }
+            game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Signal"):FireServer(unpack(args))
+        else
+            -- Regular gamemode join
+            local args = {
+                "Gamemodes",
+                modeName,
+                "Join"
+            }
+            game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Signal"):FireServer(unpack(args))
+        end
     end)
     
     if success then
