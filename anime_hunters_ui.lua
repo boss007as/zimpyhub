@@ -979,8 +979,8 @@ local function startModeMonitoring()
         end
     end)
     
-    -- Monitor selected gamemode for auto-join
-    if autoJoinEnabled and selectedMode ~= "" then
+    -- Monitor selected gamemodes for auto-join
+    if autoJoinEnabled and #selectedModes > 0 then
         modeMonitorConnection = RunService.Heartbeat:Connect(function()
             local currentTime = tick()
             if currentTime - lastModeMonitorTime < 2 then
@@ -990,19 +990,23 @@ local function startModeMonitoring()
             
             local gamemodeFolder = game:GetService("ReplicatedStorage"):FindFirstChild("Gamemodes")
             if gamemodeFolder then
-                local modeFolder = gamemodeFolder:FindFirstChild(selectedMode)
-                if modeFolder then
-                    local isOpen = modeFolder:GetAttribute("Open")
-                    local timer = modeFolder:GetAttribute("Timer") or 0
-                    
-                    -- Auto join if mode is open and player not already in it
-                    if isOpen and currentPlayerMode ~= selectedMode then
-                        spawn(function() joinGamemode(selectedMode) end)
-                    end
-                    
-                    -- Auto leave if timer is low and auto leave is enabled
-                    if autoLeaveEnabled and currentPlayerMode == selectedMode and timer <= leaveAtTime then
-                        spawn(function() leaveGamemode() end)
+                -- Check all selected modes
+                for _, modeName in pairs(selectedModes) do
+                    local modeFolder = gamemodeFolder:FindFirstChild(modeName)
+                    if modeFolder then
+                        local isOpen = modeFolder:GetAttribute("Open")
+                        local timer = modeFolder:GetAttribute("Timer") or 0
+                        
+                        -- Auto join if mode is open and player not already in any gamemode
+                        if isOpen and currentPlayerMode == "World" then
+                            spawn(function() joinGamemode(modeName) end)
+                            break -- Only join one at a time
+                        end
+                        
+                        -- Auto leave if timer is low and auto leave is enabled
+                        if autoLeaveEnabled and currentPlayerMode == modeName and timer <= leaveAtTime then
+                            spawn(function() leaveGamemode() end)
+                        end
                     end
                 end
             end
@@ -1423,7 +1427,7 @@ local LeaveTimeSlider = Tabs.GamemodeTab:Slider({
     Desc = "Leave gamemode when timer reaches this many seconds remaining",
     Value = {
         Min = 5,
-        Max = 120,
+        Max = 2000,
         Default = 30,
     },
     Step = 5,
@@ -1476,7 +1480,7 @@ myConfig:Register("selectedEnemyNames", EnemyNameDropdown)
 myConfig:Register("targetingMode", TargetingDropdown)
 myConfig:Register("movementType", MovementDropdown)
 myConfig:Register("tweenSpeed", TweenSpeedSlider)
-myConfig:Register("selectedMode", GamemodeDropdown)
+myConfig:Register("selectedModes", GamemodeDropdown)
 myConfig:Register("autoJoinEnabled", AutoJoinToggle)
 myConfig:Register("autoLeaveEnabled", AutoLeaveToggle)
 myConfig:Register("leaveAtTime", LeaveTimeSlider)
@@ -1532,7 +1536,7 @@ Tabs.ConfigTab:Button({
         TargetingDropdown:Select("Nearest")
         MovementDropdown:Select("Idle")
         TweenSpeedSlider:SetValue(1.0)
-        GamemodeDropdown:Select("")
+        GamemodeDropdown:Select({})
         AutoJoinToggle:SetValue(false)
         AutoLeaveToggle:SetValue(false)
         LeaveTimeSlider:SetValue(30)
@@ -1543,7 +1547,7 @@ Tabs.ConfigTab:Button({
         targetingMode = "Nearest"
         movementType = "Idle"
         tweenSpeed = 1.0
-        selectedMode = ""
+        selectedModes = {}
         autoJoinEnabled = false
         autoLeaveEnabled = false
         leaveAtTime = 30
