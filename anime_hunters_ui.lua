@@ -19,8 +19,6 @@ local lastNotifiedTarget = nil
 local tooFarNotified = false
 local targetDeathConnection = nil
 local targetHealthConnection = nil
-local lockTarget = false
-local isMovingToTarget = false
 
 -- Variables for Auto Join Mode
 local autoJoinEnabled = false
@@ -539,12 +537,7 @@ local function findBestTarget(enemies)
 end
 
 local function moveToTarget(target)
-    if not target or movementType == "Idle" then 
-        isMovingToTarget = false
-        return 
-    end
-    
-    isMovingToTarget = true -- Set movement flag to prevent target switching
+    if not target or movementType == "Idle" then return end
     
     local targetPos = target.position
     local offset = Vector3.new(
@@ -556,49 +549,46 @@ local function moveToTarget(target)
     
     if movementType == "TP" then
         rootPart.CFrame = CFrame.new(finalPos)
-        isMovingToTarget = false -- TP is instant
         
     elseif movementType == "Tween" then
         local tweenInfo = TweenInfo.new(tweenSpeed, Enum.EasingStyle.Linear)
         local tween = TweenService:Create(rootPart, tweenInfo, {CFrame = CFrame.new(finalPos)})
         tween:Play()
         
-        -- Clear movement flag when tween completes
-        tween.Completed:Connect(function()
-            isMovingToTarget = false
+    elseif movementType == "Walk" then
+        if movementConnection then
+            movementConnection:Disconnect()
+        end
+        
+        local success, err = pcall(function()
+            local path = PathfindingService:CreatePath()
+            path:ComputeAsync(rootPart.Position, finalPos)
+            
+            if path.Status == Enum.PathStatus.Success then
+                local waypoints = path:GetWaypoints()
+                
+                local waypointIndex = 1
+                movementConnection = RunService.Heartbeat:Connect(function()
+                    if waypointIndex <= #waypoints and autoAttackEnabled then
+                        local waypoint = waypoints[waypointIndex]
+                        humanoid:MoveTo(waypoint.Position)
+                        
+                        local distance = (rootPart.Position - waypoint.Position).Magnitude
+                        if distance < 5 then
+                            waypointIndex = waypointIndex + 1
+                        end
+                    else
+                        if movementConnection then
+                            movementConnection:Disconnect()
+                            movementConnection = nil
+                        end
+                    end
+                end)
+            end
         end)
         
-    elseif movementType == "Walk" then
-        local path = PathfindingService:CreatePath()
-        path:ComputeAsync(rootPart.Position, finalPos)
-        
-        if path.Status == Enum.PathStatus.Success then
-            local waypoints = path:GetWaypoints()
-            
-            if movementConnection then
-                movementConnection:Disconnect()
-            end
-            
-            local waypointIndex = 1
-            movementConnection = RunService.Heartbeat:Connect(function()
-                if waypointIndex <= #waypoints then
-                    local waypoint = waypoints[waypointIndex]
-                    humanoid:MoveTo(waypoint.Position)
-                    
-                    local distance = (rootPart.Position - waypoint.Position).Magnitude
-                    if distance < 5 then
-                        waypointIndex = waypointIndex + 1
-                    end
-                else
-                    if movementConnection then
-                        movementConnection:Disconnect()
-                        movementConnection = nil
-                    end
-                    isMovingToTarget = false -- Clear movement flag when path complete
-                end
-            end)
-        else
-            isMovingToTarget = false -- Clear flag if pathfinding fails
+        if not success then
+            warn("Pathfinding failed: " .. tostring(err))
         end
     end
 end
@@ -743,28 +733,6 @@ local function getAllEnemiesInRadius()
 end
 
 local function findNextTarget()
-    -- If target is locked OR currently moving to target, keep current target
-    if (lockTarget or isMovingToTarget) and currentTarget then
-        if currentTarget.part and currentTarget.part.Parent then
-            local died = currentTarget.part:GetAttribute("Died")
-            local health = currentTarget.part:GetAttribute("Health") or currentTarget.part.Health
-            if not died and health and health > 0 then
-                -- Update target's position and health
-                currentTarget.position = currentTarget.part.Position
-                currentTarget.health = tonumber(health) or 0
-                return currentTarget
-            end
-        end
-        -- Target is dead/invalid, unlock and stop movement
-        lockTarget = false
-        isMovingToTarget = false
-    end
-    
-    -- Only find new target if not currently moving (prevents indecisive switching)
-    if isMovingToTarget then
-        return currentTarget
-    end
-    
     local enemies = getAllEnemiesInRadius()
     if #enemies == 0 then return nil end
     
@@ -847,9 +815,6 @@ local function startAutoAttack()
         end
         
         if isInAttackRange(currentTarget) then
-            -- Clear movement flag when we're close enough to attack
-            isMovingToTarget = false
-            
             -- Protected attack call to prevent script breaking
             spawn(function()
                 -- Store target ID before attack to prevent nil access
@@ -1182,31 +1147,6 @@ local TweenSpeedSlider = Tabs.MainTab:Slider({
 
 Tabs.MainTab:Divider()
 
-local LockTargetToggle = Tabs.MainTab:Toggle({
-    Title = "Lock Target",
-    Desc = "Lock onto current target and don't switch to other enemies (automatically locks during movement)",
-    Icon = "lock",
-    Value = false,
-    Callback = function(state)
-        lockTarget = state
-        if state and currentTarget then
-            WindUI:Notify({
-                Title = "Target Locked",
-                Content = "Locked onto: " .. currentTarget.name,
-                Icon = "lock",
-                Duration = 2,
-            })
-        elseif not state then
-            WindUI:Notify({
-                Title = "Target Unlocked",
-                Content = "Will switch targets normally",
-                Icon = "unlock",
-                Duration = 2,
-            })
-        end
-    end
-})
-
 local AutoAttackToggle = Tabs.MainTab:Toggle({
     Title = "Auto Attack",
     Desc = "Enable/disable automatic enemy targeting and attacking within 1000 studs",
@@ -1227,8 +1167,6 @@ local AutoAttackToggle = Tabs.MainTab:Toggle({
         else
             stopAutoAttack()
             stopModeMonitoring()
-            lockTarget = false -- Unlock target when stopping
-            LockTargetToggle:SetValue(false)
             WindUI:Notify({
                 Title = "Auto Attack",
                 Content = "Auto Attack disabled!",
@@ -1326,7 +1264,6 @@ myConfig:Register("selectedEnemyNames", EnemyNameDropdown)
 myConfig:Register("targetingMode", TargetingDropdown)
 myConfig:Register("movementType", MovementDropdown)
 myConfig:Register("tweenSpeed", TweenSpeedSlider)
-myConfig:Register("lockTarget", LockTargetToggle)
 
 Tabs.ConfigTab:Paragraph({
     Title = "Configuration Management",
@@ -1379,7 +1316,6 @@ Tabs.ConfigTab:Button({
         TargetingDropdown:Select("Nearest")
         MovementDropdown:Select("Idle")
         TweenSpeedSlider:SetValue(1.0)
-        LockTargetToggle:SetValue(false)
         
         autoAttackEnabled = false
         autoAttackSpeed = 0.1
@@ -1387,7 +1323,6 @@ Tabs.ConfigTab:Button({
         targetingMode = "Nearest"
         movementType = "Idle"
         tweenSpeed = 1.0
-        lockTarget = false
         currentTarget = nil
         tooFarNotified = false
         
