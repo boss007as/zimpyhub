@@ -17,6 +17,8 @@ local healthCheckConnection = nil
 local movementConnection = nil
 local lastNotifiedTarget = nil
 local tooFarNotified = false
+local targetDeathConnection = nil
+local targetHealthConnection = nil
 
 -- Services
 local Players = game:GetService("Players")
@@ -126,27 +128,34 @@ local function getEnemyNamesFromModuleScript(worlds)
     local allEnemyNames = {}
     local nameSet = {}
     
+    if not worlds or #worlds == 0 then
+        return allEnemyNames
+    end
+    
     for _, worldName in pairs(worlds) do
-        local enemiesModule = game:GetService("ReplicatedStorage"):FindFirstChild("Shared")
-        if enemiesModule then
-            enemiesModule = enemiesModule:FindFirstChild("Enemies")
+        local success, enemyData = pcall(function()
+            local enemiesModule = game:GetService("ReplicatedStorage"):FindFirstChild("Shared")
             if enemiesModule then
-                enemiesModule = enemiesModule:FindFirstChild(worldName)
+                enemiesModule = enemiesModule:FindFirstChild("Enemies")
                 if enemiesModule then
-                    local success, enemyData = pcall(function()
+                    enemiesModule = enemiesModule:FindFirstChild(worldName)
+                    if enemiesModule then
                         return require(enemiesModule)
-                    end)
-                    
-                    if success and enemyData then
-                        for enemyName, _ in pairs(enemyData) do
-                            if not nameSet[enemyName] then
-                                nameSet[enemyName] = true
-                                table.insert(allEnemyNames, enemyName)
-                            end
-                        end
                     end
                 end
             end
+            return nil
+        end)
+        
+        if success and enemyData then
+            for enemyName, _ in pairs(enemyData) do
+                if not nameSet[enemyName] then
+                    nameSet[enemyName] = true
+                    table.insert(allEnemyNames, enemyName)
+                end
+            end
+        else
+            print("Could not load enemy data for world: " .. worldName)
         end
     end
     
@@ -398,18 +407,8 @@ local function startAutoAttack()
         if autoAttackEnabled then
             -- Only attack if we have a valid current target
             if currentTarget then
-                -- Double-check target is still valid before attacking
+                -- Simple part existence check (death/health monitoring is handled by attribute signals)
                 if currentTarget.part and currentTarget.part.Parent then
-                    local died = currentTarget.part:GetAttribute("Died")
-                    local health = currentTarget.part:GetAttribute("Health") or currentTarget.part.Health
-                    
-                    if died or not health or health <= 0 then
-                        -- Target died, immediately switch to next target
-                        print("Target died during attack - switching to next target")
-                        switchToNextTarget()
-                        return
-                    end
-                    
                     if isInAttackRange(currentTarget) then
                         local args = {
                             "General",
@@ -440,7 +439,7 @@ local function startAutoAttack()
                     end
                 else
                     -- Target part no longer exists, switch to next target
-                    print("Target part no longer exists - switching to next target")
+                    print("Target part no longer exists during attack - switching to next target")
                     switchToNextTarget()
                 end
             end
@@ -461,6 +460,7 @@ local function stopAutoAttack()
         movementConnection:Disconnect()
         movementConnection = nil
     end
+    disconnectTargetMonitoring()
     currentTarget = nil
     tooFarNotified = false
 end
@@ -474,12 +474,58 @@ local function findNextTarget()
     return findBestTarget(enemies)
 end
 
+local function disconnectTargetMonitoring()
+    if targetDeathConnection then
+        targetDeathConnection:Disconnect()
+        targetDeathConnection = nil
+    end
+    if targetHealthConnection then
+        targetHealthConnection:Disconnect()
+        targetHealthConnection = nil
+    end
+end
+
+local function monitorTargetChanges(target)
+    disconnectTargetMonitoring()
+    
+    if not target or not target.part then return end
+    
+    -- Monitor Died attribute changes
+    targetDeathConnection = target.part:GetAttributeChangedSignal("Died"):Connect(function()
+        local died = target.part:GetAttribute("Died")
+        if died then
+            print("Target died - attribute changed to true, switching immediately")
+            switchToNextTarget()
+        end
+    end)
+    
+    -- Monitor Health attribute changes
+    targetHealthConnection = target.part:GetAttributeChangedSignal("Health"):Connect(function()
+        local health = target.part:GetAttribute("Health")
+        if not health or health <= 0 then
+            print("Target health reached 0, switching immediately")
+            switchToNextTarget()
+        else
+            -- Update current target health
+            if currentTarget then
+                currentTarget.health = health
+            end
+        end
+    end)
+end
+
 local function switchToNextTarget()
+    -- Disconnect monitoring for old target
+    disconnectTargetMonitoring()
+    
     local newTarget = findNextTarget()
     if newTarget then
         currentTarget = newTarget
         tooFarNotified = false -- Reset notification for new target
         lastNotifiedTarget = nil -- Reset last notified target
+        
+        -- Start monitoring the new target
+        monitorTargetChanges(currentTarget)
         
         -- Move to new target immediately
         if movementType ~= "Idle" then
@@ -506,35 +552,25 @@ local function startHealthMonitoring()
         healthCheckConnection:Disconnect()
     end
     
+    -- Lighter monitoring - just check for new targets and part existence
     healthCheckConnection = RunService.Heartbeat:Connect(function()
         if autoAttackEnabled and #selectedWorlds > 0 then
-            wait(0.05) -- Check frequently for instant switching
+            wait(0.5) -- Less frequent checking since we use attribute change signals
             
             -- Update character references if needed
             if not character.Parent then
                 updateCharacterReferences()
             end
             
-            -- If we have a current target, validate it immediately
+            -- If we have a current target, just check if part still exists
             if currentTarget then
-                -- Check if target part still exists and is valid
-                if currentTarget.part and currentTarget.part.Parent then
-                    local died = currentTarget.part:GetAttribute("Died")
-                    local health = currentTarget.part:GetAttribute("Health") or currentTarget.part.Health
-                    
-                    if died or not health or health <= 0 then
-                        -- Target died - immediately switch to next target (priority over nearest)
-                        print("Target died - immediately switching to next target")
-                        switchToNextTarget()
-                    else
-                        -- Update current target's health and position
-                        currentTarget.health = health
-                        currentTarget.position = currentTarget.part.Position
-                    end
-                else
+                if not currentTarget.part or not currentTarget.part.Parent then
                     -- Target part no longer exists - immediately switch
                     print("Target part no longer exists - immediately switching to next target")
                     switchToNextTarget()
+                else
+                    -- Update current target's position
+                    currentTarget.position = currentTarget.part.Position
                 end
             else
                 -- No current target, find one
@@ -564,10 +600,20 @@ local WorldDropdown = Tabs.MainTab:Dropdown({
     Callback = function(worlds)
         selectedWorlds = worlds or {}
         currentTarget = nil -- Reset target when worlds change
+        disconnectTargetMonitoring() -- Disconnect old target monitoring
         
         -- Update enemy names based on selected worlds
-        local enemyNames = getEnemyNamesFromModuleScript(selectedWorlds)
-        EnemyNameDropdown:Refresh(enemyNames)
+        local success, enemyNames = pcall(function()
+            return getEnemyNamesFromModuleScript(selectedWorlds)
+        end)
+        
+        if success and enemyNames then
+            EnemyNameDropdown:Refresh(enemyNames)
+            print("Loaded " .. #enemyNames .. " enemy names from selected worlds")
+        else
+            print("Error loading enemy names, using empty list")
+            EnemyNameDropdown:Refresh({})
+        end
         
         if #selectedWorlds > 0 then
             WindUI:Notify({
