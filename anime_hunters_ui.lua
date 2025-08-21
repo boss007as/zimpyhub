@@ -7,16 +7,14 @@ local autoAttackSpeed = 0.1
 local autoAttackConnection = nil
 
 -- Variables for Enemy Targeting
-local detectedWorld = ""
+local selectedWorlds = {}
 local targetingMode = "Nearest"
-local selectedEnemyName = ""
+local selectedEnemyNames = {}
 local movementType = "Idle"
 local tweenSpeed = 1
 local currentTarget = nil
 local healthCheckConnection = nil
 local movementConnection = nil
-local worldDetectionConnection = nil
-local isInSleepMode = false
 local lastNotifiedTarget = nil
 local tooFarNotified = false
 
@@ -124,33 +122,27 @@ local function getAllWorlds()
     return worlds
 end
 
-local function detectCurrentWorld()
-    local playerPos = rootPart.Position
-    local closestWorld = ""
-    local closestDistance = math.huge
+local function getEnemyNamesFromModuleScript(worlds)
+    local allEnemyNames = {}
+    local nameSet = {}
     
-    local enemiesFolder = workspace:FindFirstChild("Client")
-    if not enemiesFolder then return "" end
-    
-    enemiesFolder = enemiesFolder:FindFirstChild("Enemies")
-    if not enemiesFolder then return "" end
-    
-    enemiesFolder = enemiesFolder:FindFirstChild("World")
-    if not enemiesFolder then return "" end
-    
-    -- Check all worlds simultaneously for nearby enemies (optimized)
-    for _, worldFolder in pairs(enemiesFolder:GetChildren()) do
-        if worldFolder:IsA("Folder") and #worldFolder:GetChildren() > 0 then -- Only check worlds with content
-            for _, part in pairs(worldFolder:GetChildren()) do
-                if part:IsA("BasePart") and part:GetAttribute("ID") then
-                    local died = part:GetAttribute("Died")
-                    local health = part:GetAttribute("Health") or part.Health
+    for _, worldName in pairs(worlds) do
+        local enemiesModule = game:GetService("ReplicatedStorage"):FindFirstChild("Shared")
+        if enemiesModule then
+            enemiesModule = enemiesModule:FindFirstChild("Enemies")
+            if enemiesModule then
+                enemiesModule = enemiesModule:FindFirstChild(worldName)
+                if enemiesModule then
+                    local success, enemyData = pcall(function()
+                        return require(enemiesModule)
+                    end)
                     
-                    if not died and health and health > 0 then
-                        local distance = (playerPos - part.Position).Magnitude
-                        if distance <= 100 and distance < closestDistance then
-                            closestDistance = distance
-                            closestWorld = worldFolder.Name
+                    if success and enemyData then
+                        for enemyName, _ in pairs(enemyData) do
+                            if not nameSet[enemyName] then
+                                nameSet[enemyName] = true
+                                table.insert(allEnemyNames, enemyName)
+                            end
                         end
                     end
                 end
@@ -158,7 +150,7 @@ local function detectCurrentWorld()
         end
     end
     
-    return closestWorld
+    return allEnemyNames
 end
 
 local function getEnemiesInWorld(worldName)
@@ -193,39 +185,17 @@ local function getEnemiesInWorld(worldName)
     return enemies
 end
 
-local function getAvailableEnemyNames(worldName)
-    local enemyNames = {}
-    local nameSet = {}
+local function getAllEnemiesInSelectedWorlds()
+    local allEnemies = {}
     
-    if worldName == "" then return enemyNames end
-    
-    local worldFolder = workspace:FindFirstChild("Client")
-    if worldFolder then
-        worldFolder = worldFolder:FindFirstChild("Enemies")
-        if worldFolder then
-            worldFolder = worldFolder:FindFirstChild("World")
-            if worldFolder then
-                worldFolder = worldFolder:FindFirstChild(worldName)
-                if worldFolder then
-                    for _, part in pairs(worldFolder:GetChildren()) do
-                        if part:IsA("BasePart") and part:GetAttribute("ID") then
-                            local died = part:GetAttribute("Died")
-                            local health = part:GetAttribute("Health") or part.Health
-                            if not died and health and health > 0 then
-                                local name = part.Name
-                                if not nameSet[name] then
-                                    nameSet[name] = true
-                                    table.insert(enemyNames, name)
-                                end
-                            end
-                        end
-                    end
-                end
-            end
+    for _, worldName in pairs(selectedWorlds) do
+        local worldEnemies = getEnemiesInWorld(worldName)
+        for _, enemy in pairs(worldEnemies) do
+            table.insert(allEnemies, enemy)
         end
     end
     
-    return enemyNames
+    return allEnemies
 end
 
 local function isInAttackRange(target)
@@ -239,22 +209,25 @@ local function findBestTarget(enemies)
     
     local playerPos = rootPart.Position
     
-    -- First, try to find enemies with the selected name (if any)
+    -- First, try to find enemies with the selected names (if any)
     local filteredEnemies = enemies
-    if selectedEnemyName ~= "" then
+    if #selectedEnemyNames > 0 then
         local namedEnemies = {}
         for _, enemy in pairs(enemies) do
-            if enemy.name == selectedEnemyName then
-                table.insert(namedEnemies, enemy)
+            for _, selectedName in pairs(selectedEnemyNames) do
+                if enemy.name == selectedName then
+                    table.insert(namedEnemies, enemy)
+                    break
+                end
             end
         end
         
-        -- If we found enemies with the selected name, use them
+        -- If we found enemies with the selected names, use them
         if #namedEnemies > 0 then
             filteredEnemies = namedEnemies
         else
-            -- Selected enemy name not found, fall back to any enemy (nearest)
-            print("Selected enemy '" .. selectedEnemyName .. "' not found, attacking nearest enemy")
+            -- Selected enemy names not found, fall back to any enemy (nearest)
+            print("Selected enemies not found, attacking nearest available enemy")
         end
     end
     
@@ -413,58 +386,7 @@ local function updateCharacterReferences()
     rootPart = character:WaitForChild("HumanoidRootPart")
 end
 
--- World Detection System (Optimized)
-local function startWorldDetection()
-    if worldDetectionConnection then
-        worldDetectionConnection:Disconnect()
-    end
-    
-    worldDetectionConnection = RunService.Heartbeat:Connect(function()
-        if autoAttackEnabled then
-            wait(0.5) -- Check twice per second for faster detection
-            
-            -- Update character references if needed
-            if not character.Parent then
-                updateCharacterReferences()
-            end
-            
-            local newWorld = detectCurrentWorld()
-            
-            if newWorld ~= detectedWorld then
-                detectedWorld = newWorld
-                currentTarget = nil
-                tooFarNotified = false
-                
-                if detectedWorld ~= "" then
-                    WorldStatus:SetTitle("Current World: " .. detectedWorld)
-                    WorldStatus:SetDesc("World detected successfully! Auto-targeting enemies within range.")
-                    WindUI:Notify({
-                        Title = "World Detected",
-                        Content = "Now hunting in: " .. detectedWorld,
-                        Icon = "map-pin",
-                        Duration = 3,
-                    })
-                    isInSleepMode = false
-                    -- Update enemy names dropdown
-                    local enemyNames = getAvailableEnemyNames(detectedWorld)
-                    EnemyNameDropdown:Refresh(enemyNames)
-                    -- Immediately find first target
-                    switchToNextTarget()
-                else
-                    WorldStatus:SetTitle("Current World: Not Detected")
-                    WorldStatus:SetDesc("No enemies found within 100 studs. Move closer to enemies.")
-                    WindUI:Notify({
-                        Title = "No Enemies",
-                        Content = "No enemies detected in any world",
-                        Icon = "search",
-                        Duration = 3,
-                    })
-                    isInSleepMode = true
-                end
-            end
-        end
-    end)
-end
+-- No longer needed - removed auto world detection
 
 -- Auto Attack Function
 local function startAutoAttack()
@@ -539,20 +461,14 @@ local function stopAutoAttack()
         movementConnection:Disconnect()
         movementConnection = nil
     end
-    if worldDetectionConnection then
-        worldDetectionConnection:Disconnect()
-        worldDetectionConnection = nil
-    end
     currentTarget = nil
-    detectedWorld = ""
-    isInSleepMode = false
     tooFarNotified = false
 end
 
 local function findNextTarget()
-    if detectedWorld == "" then return nil end
+    if #selectedWorlds == 0 then return nil end
     
-    local enemies = getEnemiesInWorld(detectedWorld)
+    local enemies = getAllEnemiesInSelectedWorlds()
     if #enemies == 0 then return nil end
     
     return findBestTarget(enemies)
@@ -591,8 +507,8 @@ local function startHealthMonitoring()
     end
     
     healthCheckConnection = RunService.Heartbeat:Connect(function()
-        if autoAttackEnabled and detectedWorld ~= "" and not isInSleepMode then
-            wait(0.05) -- Check even more frequently for instant switching
+        if autoAttackEnabled and #selectedWorlds > 0 then
+            wait(0.05) -- Check frequently for instant switching
             
             -- Update character references if needed
             if not character.Parent then
@@ -607,7 +523,7 @@ local function startHealthMonitoring()
                     local health = currentTarget.part:GetAttribute("Health") or currentTarget.part.Health
                     
                     if died or not health or health <= 0 then
-                        -- Target died - immediately switch to next target
+                        -- Target died - immediately switch to next target (priority over nearest)
                         print("Target died - immediately switching to next target")
                         switchToNextTarget()
                     else
@@ -630,35 +546,65 @@ end
 
 -- Main Tab Elements
 Tabs.MainTab:Paragraph({
-    Title = "Auto Enemy Detection System",
-    Desc = "Automatically detects your current world and targets enemies based on your preferences. System will detect enemies within 100 studs and attack when within 10 studs.",
+    Title = "Multi-World Enemy Targeting System",
+    Desc = "Select multiple worlds and enemy types to hunt. System will attack enemies within 10 studs and immediately switch when current target dies.",
     Image = "crosshair",
     Color = "Blue",
 })
 
--- World Status Display
-local WorldStatus = Tabs.MainTab:Paragraph({
-    Title = "Current World: Not Detected",
-    Desc = "The system will automatically detect which world you're in based on nearby enemies.",
-    Image = "map-pin",
-    Color = "Grey",
+-- World Selection
+local WorldDropdown = Tabs.MainTab:Dropdown({
+    Title = "Select Worlds",
+    Desc = "Choose which worlds to hunt enemies in (can select multiple)",
+    Icon = "globe",
+    Values = getAllWorlds(),
+    Value = {},
+    Multi = true,
+    AllowNone = true,
+    Callback = function(worlds)
+        selectedWorlds = worlds or {}
+        currentTarget = nil -- Reset target when worlds change
+        
+        -- Update enemy names based on selected worlds
+        local enemyNames = getEnemyNamesFromModuleScript(selectedWorlds)
+        EnemyNameDropdown:Refresh(enemyNames)
+        
+        if #selectedWorlds > 0 then
+            WindUI:Notify({
+                Title = "Worlds Selected",
+                Content = "Selected " .. #selectedWorlds .. " world(s)",
+                Icon = "map-pin",
+                Duration = 2,
+            })
+        else
+            WindUI:Notify({
+                Title = "No Worlds Selected",
+                Content = "Please select at least one world",
+                Icon = "alert-triangle",
+                Duration = 2,
+            })
+        end
+        print("Selected Worlds: " .. game:GetService("HttpService"):JSONEncode(selectedWorlds))
+    end
 })
 
 -- Enemy Name Selection
 local EnemyNameDropdown = Tabs.MainTab:Dropdown({
-    Title = "Target Enemy Name",
-    Desc = "Choose specific enemy name to target (leave empty for any enemy)",
-    Icon = "user-x",
+    Title = "Target Enemy Names",
+    Desc = "Choose specific enemy names to target (can select multiple, leave empty for any enemy)",
+    Icon = "users",
     Values = {},
-    Value = "",
+    Value = {},
+    Multi = true,
     AllowNone = true,
-    Callback = function(enemyName)
-        selectedEnemyName = enemyName or ""
+    Callback = function(enemyNames)
+        selectedEnemyNames = enemyNames or {}
         currentTarget = nil -- Reset target to apply new selection
-        if selectedEnemyName ~= "" then
+        
+        if #selectedEnemyNames > 0 then
             WindUI:Notify({
-                Title = "Enemy Selected",
-                Content = "Will target: " .. selectedEnemyName,
+                Title = "Enemies Selected",
+                Content = "Will target " .. #selectedEnemyNames .. " enemy type(s)",
                 Icon = "crosshair",
                 Duration = 2,
             })
@@ -670,7 +616,7 @@ local EnemyNameDropdown = Tabs.MainTab:Dropdown({
                 Duration = 2,
             })
         end
-        print("Selected Enemy Name: " .. selectedEnemyName)
+        print("Selected Enemy Names: " .. game:GetService("HttpService"):JSONEncode(selectedEnemyNames))
     end
 })
 
@@ -733,25 +679,33 @@ Tabs.MainTab:Divider()
 
 local AutoAttackToggle = Tabs.MainTab:Toggle({
     Title = "Auto Attack",
-    Desc = "Enable/disable automatic enemy detection, targeting and attacking",
+    Desc = "Enable/disable automatic enemy targeting and attacking",
     Icon = "sword",
     Value = false,
     Callback = function(state)
         autoAttackEnabled = state
         if state then
+            if #selectedWorlds == 0 then
+                WindUI:Notify({
+                    Title = "Error",
+                    Content = "Please select at least one world first!",
+                    Icon = "alert-triangle",
+                    Duration = 3,
+                })
+                AutoAttackToggle:SetValue(false)
+                return
+            end
+            
             startAutoAttack()
             startHealthMonitoring()
-            startWorldDetection()
             WindUI:Notify({
                 Title = "Auto Attack",
-                Content = "Auto Attack enabled! Detecting world...",
+                Content = "Auto Attack enabled for " .. #selectedWorlds .. " world(s)!",
                 Icon = "check",
                 Duration = 3,
             })
         else
             stopAutoAttack()
-            WorldStatus:SetTitle("Current World: Not Detected")
-            WorldStatus:SetDesc("The system will automatically detect which world you're in based on nearby enemies.")
             WindUI:Notify({
                 Title = "Auto Attack",
                 Content = "Auto Attack disabled!",
@@ -781,42 +735,28 @@ local SpeedSlider = Tabs.MainTab:Slider({
 Tabs.MainTab:Divider()
 
 Tabs.MainTab:Button({
-    Title = "Force World Detection",
-    Desc = "Manually trigger world detection scan",
-    Icon = "search",
+    Title = "Refresh Worlds",
+    Desc = "Update the list of available worlds",
+    Icon = "refresh-cw",
     Callback = function()
-        local world = detectCurrentWorld()
-        if world ~= "" then
-            detectedWorld = world
-            WorldStatus:SetTitle("Current World: " .. world)
-            WorldStatus:SetDesc("World detected successfully! Enemies within 100 studs range.")
-            -- Update enemy names dropdown
-            local enemyNames = getAvailableEnemyNames(detectedWorld)
-            EnemyNameDropdown:Refresh(enemyNames)
-            WindUI:Notify({
-                Title = "World Detected",
-                Content = "Found world: " .. world,
-                Icon = "map-pin",
-                Duration = 2,
-            })
-        else
-            WindUI:Notify({
-                Title = "No World Detected",
-                Content = "No enemies found within 100 studs",
-                Icon = "search-x",
-                Duration = 2,
-            })
-        end
+        local worlds = getAllWorlds()
+        WorldDropdown:Refresh(worlds)
+        WindUI:Notify({
+            Title = "Worlds Refreshed",
+            Content = "Found " .. #worlds .. " worlds",
+            Icon = "refresh-cw",
+            Duration = 2,
+        })
     end
 })
 
 Tabs.MainTab:Button({
     Title = "Refresh Enemy Names",
-    Desc = "Update the list of available enemy names",
-    Icon = "refresh-cw",
+    Desc = "Update the list of available enemy names from selected worlds",
+    Icon = "users",
     Callback = function()
-        if detectedWorld ~= "" then
-            local enemyNames = getAvailableEnemyNames(detectedWorld)
+        if #selectedWorlds > 0 then
+            local enemyNames = getEnemyNamesFromModuleScript(selectedWorlds)
             EnemyNameDropdown:Refresh(enemyNames)
             WindUI:Notify({
                 Title = "Enemy Names Refreshed",
@@ -826,8 +766,8 @@ Tabs.MainTab:Button({
             })
         else
             WindUI:Notify({
-                Title = "No World Detected",
-                Content = "Please detect a world first!",
+                Title = "No Worlds Selected",
+                Content = "Please select worlds first!",
                 Icon = "alert-triangle",
                 Duration = 2,
             })
@@ -899,7 +839,8 @@ local myConfig = ConfigManager:CreateConfig("AnimeHuntersConfig")
 -- Register elements for config
 myConfig:Register("autoAttackToggle", AutoAttackToggle)
 myConfig:Register("attackSpeed", SpeedSlider)
-myConfig:Register("selectedEnemyName", EnemyNameDropdown)
+myConfig:Register("selectedWorlds", WorldDropdown)
+myConfig:Register("selectedEnemyNames", EnemyNameDropdown)
 myConfig:Register("targetingMode", TargetingDropdown)
 myConfig:Register("movementType", MovementDropdown)
 myConfig:Register("tweenSpeed", TweenSpeedSlider)
@@ -951,24 +892,21 @@ Tabs.ConfigTab:Button({
         -- Reset to defaults
         AutoAttackToggle:SetValue(false)
         SpeedSlider:SetValue(0.1)
-        EnemyNameDropdown:Select("")
+        WorldDropdown:Select({})
+        EnemyNameDropdown:Select({})
         TargetingDropdown:Select("Nearest")
         MovementDropdown:Select("Idle")
         TweenSpeedSlider:SetValue(1.0)
         
         autoAttackEnabled = false
         autoAttackSpeed = 0.1
-        selectedEnemyName = ""
-        detectedWorld = ""
+        selectedWorlds = {}
+        selectedEnemyNames = {}
         targetingMode = "Nearest"
         movementType = "Idle"
         tweenSpeed = 1.0
         currentTarget = nil
-        isInSleepMode = false
         tooFarNotified = false
-        
-        WorldStatus:SetTitle("Current World: Not Detected")
-        WorldStatus:SetDesc("The system will automatically detect which world you're in based on nearby enemies.")
         
         stopAutoAttack()
         
@@ -987,12 +925,7 @@ player.CharacterAdded:Connect(function(newCharacter)
     humanoid = character:WaitForChild("Humanoid")
     rootPart = character:WaitForChild("HumanoidRootPart")
     currentTarget = nil -- Reset target when respawning
-    detectedWorld = "" -- Reset world detection
     tooFarNotified = false
-    isInSleepMode = false
-    
-    WorldStatus:SetTitle("Current World: Not Detected")
-    WorldStatus:SetDesc("Character respawned. Detecting world...")
 end)
 
 -- Window close handler
