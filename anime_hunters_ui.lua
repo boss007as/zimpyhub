@@ -595,6 +595,18 @@ end
 
 -- No longer needed - removed auto world detection
 
+-- Target monitoring functions
+local function disconnectTargetMonitoring()
+    if targetDeathConnection then
+        targetDeathConnection:Disconnect()
+        targetDeathConnection = nil
+    end
+    if targetHealthConnection then
+        targetHealthConnection:Disconnect()
+        targetHealthConnection = nil
+    end
+end
+
 -- Auto Attack Function
 local lastAttackTime = 0
 
@@ -777,17 +789,6 @@ local function findNextTarget()
         local enemies = getAllEnemiesInSelectedWorlds()
         if #enemies == 0 then return nil end
         return findBestTarget(enemies)
-    end
-end
-
-local function disconnectTargetMonitoring()
-    if targetDeathConnection then
-        targetDeathConnection:Disconnect()
-        targetDeathConnection = nil
-    end
-    if targetHealthConnection then
-        targetHealthConnection:Disconnect()
-        targetHealthConnection = nil
     end
 end
 
