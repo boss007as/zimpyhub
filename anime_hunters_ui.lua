@@ -596,58 +596,69 @@ end
 -- No longer needed - removed auto world detection
 
 -- Auto Attack Function
+local lastAttackTime = 0
+
 local function startAutoAttack()
     if autoAttackConnection then
         autoAttackConnection:Disconnect()
     end
     
     autoAttackConnection = RunService.Heartbeat:Connect(function()
-        if autoAttackEnabled then
-            -- Only attack if we have a valid current target
-            if currentTarget then
-                -- Simple part existence check (death/health monitoring is handled by attribute signals)
-                if currentTarget.part and currentTarget.part.Parent then
-                    if isInAttackRange(currentTarget) then
-                        -- Protected attack call to prevent script breaking
-                        local success, err = pcall(function()
-                            local args = {
-                                "General",
-                                "Attack",
-                                "Click",
-                                currentTarget.id
-                            }
-                            game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Signal"):FireServer(unpack(args))
-                        end)
-                        
-                        if not success then
-                            -- Attack failed, but don't break the script
-                            warn("Attack failed: " .. tostring(err))
-                        end
-                        
-                        tooFarNotified = false -- Reset notification flag when in range
-                        wait(autoAttackSpeed)
-                    else
-                        -- Player is too far from target
-                        if not tooFarNotified or lastNotifiedTarget ~= currentTarget.id then
-                            WindUI:Notify({
-                                Title = "Too Far",
-                                Content = "Move closer to attack (within 10 studs)",
-                                Icon = "move",
-                                Duration = 2,
-                            })
-                            tooFarNotified = true
-                            lastNotifiedTarget = currentTarget.id
-                        end
-                        
-                        -- Auto move closer if not idle
-                        if movementType ~= "Idle" then
-                            moveToTarget(currentTarget)
-                        end
-                    end
-                else
-                    -- Target part no longer exists, switch to next target
-                    switchToNextTarget()
+        if not autoAttackEnabled then return end
+        
+        -- Only attack if we have a valid current target
+        if not currentTarget then return end
+        
+        -- Simple part existence check (death/health monitoring is handled by attribute signals)
+        if not currentTarget.part or not currentTarget.part.Parent then
+            -- Target part no longer exists, switch to next target
+            spawn(function() switchToNextTarget() end)
+            return
+        end
+        
+        -- Check attack speed timing
+        local currentTime = tick()
+        if currentTime - lastAttackTime < autoAttackSpeed then
+            return -- Not enough time passed
+        end
+        
+        if isInAttackRange(currentTarget) then
+            -- Protected attack call to prevent script breaking
+            spawn(function()
+                local success, err = pcall(function()
+                    local args = {
+                        "General",
+                        "Attack",
+                        "Click",
+                        currentTarget.id
+                    }
+                    game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Signal"):FireServer(unpack(args))
+                end)
+                
+                if not success then
+                    -- Attack failed, but don't break the script
+                    warn("Attack failed: " .. tostring(err))
                 end
+            end)
+            
+            lastAttackTime = currentTime
+            tooFarNotified = false -- Reset notification flag when in range
+        else
+            -- Player is too far from target
+            if not tooFarNotified or lastNotifiedTarget ~= currentTarget.id then
+                WindUI:Notify({
+                    Title = "Too Far",
+                    Content = "Move closer to attack (within 10 studs)",
+                    Icon = "move",
+                    Duration = 2,
+                })
+                tooFarNotified = true
+                lastNotifiedTarget = currentTarget.id
+            end
+            
+            -- Auto move closer if not idle
+            if movementType ~= "Idle" then
+                moveToTarget(currentTarget)
             end
         end
     end)
@@ -672,6 +683,9 @@ local function stopAutoAttack()
 end
 
 -- Monitor gamemode status and player mode
+local lastPlayerModeCheckTime = 0
+local lastModeMonitorTime = 0
+
 local function startModeMonitoring()
     if modeMonitorConnection then
         modeMonitorConnection:Disconnect()
@@ -683,7 +697,11 @@ local function startModeMonitoring()
     
     -- Monitor player's current mode
     playerModeConnection = RunService.Heartbeat:Connect(function()
-        wait(1) -- Check every second to avoid lag
+        local currentTime = tick()
+        if currentTime - lastPlayerModeCheckTime < 1 then
+            return -- Check every second to avoid lag
+        end
+        lastPlayerModeCheckTime = currentTime
         
         local newPlayerMode = player:GetAttribute("Mode") or "World"
         if newPlayerMode ~= currentPlayerMode then
@@ -707,7 +725,11 @@ local function startModeMonitoring()
     -- Monitor selected gamemode for auto-join
     if autoJoinEnabled and selectedMode ~= "" then
         modeMonitorConnection = RunService.Heartbeat:Connect(function()
-            wait(2) -- Check every 2 seconds to avoid spam
+            local currentTime = tick()
+            if currentTime - lastModeMonitorTime < 2 then
+                return -- Check every 2 seconds to avoid spam
+            end
+            lastModeMonitorTime = currentTime
             
             local gamemodeFolder = game:GetService("ReplicatedStorage"):FindFirstChild("Gamemodes")
             if gamemodeFolder then
@@ -718,12 +740,12 @@ local function startModeMonitoring()
                     
                     -- Auto join if mode is open and player not already in it
                     if isOpen and currentPlayerMode ~= selectedMode then
-                        joinGamemode(selectedMode)
+                        spawn(function() joinGamemode(selectedMode) end)
                     end
                     
                     -- Auto leave if timer is low and auto leave is enabled
                     if autoLeaveEnabled and currentPlayerMode == selectedMode and timer <= leaveAtTime then
-                        leaveGamemode()
+                        spawn(function() leaveGamemode() end)
                     end
                 end
             end
@@ -837,6 +859,8 @@ local function switchToNextTarget()
     end
 end
 
+local lastHealthCheckTime = 0
+
 local function startHealthMonitoring()
     if healthCheckConnection then
         healthCheckConnection:Disconnect()
@@ -844,38 +868,44 @@ local function startHealthMonitoring()
     
     -- Backup monitoring system - checks for death and part existence
     healthCheckConnection = RunService.Heartbeat:Connect(function()
-        if autoAttackEnabled and #selectedWorlds > 0 then
-            wait(0.2) -- Check more frequently as backup to attribute signals
-            
-            -- Update character references if needed
-            if not character.Parent then
-                updateCharacterReferences()
-            end
-            
-            -- If we have a current target, validate it
-            if currentTarget then
-                if not currentTarget.part or not currentTarget.part.Parent then
-                    -- Target part no longer exists - immediately switch
-                    switchToNextTarget()
-                else
-                    -- Backup death check in case attribute signals fail
-                    local died = currentTarget.part:GetAttribute("Died")
-                    local health = currentTarget.part:GetAttribute("Health") or currentTarget.part.Health
-                    
-                    if died == true then
-                        switchToNextTarget()
-                    elseif not health or health <= 0 then
-                        switchToNextTarget()
-                    else
-                        -- Update current target's position and health
-                        currentTarget.position = currentTarget.part.Position
-                        currentTarget.health = health
-                    end
-                end
+        if not autoAttackEnabled then return end
+        
+        -- Timing check to avoid excessive calls
+        local currentTime = tick()
+        if currentTime - lastHealthCheckTime < 0.2 then
+            return
+        end
+        lastHealthCheckTime = currentTime
+        
+        -- Update character references if needed
+        if not character or not character.Parent then
+            spawn(function() updateCharacterReferences() end)
+            return
+        end
+        
+        -- If we have a current target, validate it
+        if currentTarget then
+            if not currentTarget.part or not currentTarget.part.Parent then
+                -- Target part no longer exists - immediately switch
+                spawn(function() switchToNextTarget() end)
             else
-                -- No current target, find one
-                switchToNextTarget()
+                -- Backup death check in case attribute signals fail
+                local died = currentTarget.part:GetAttribute("Died")
+                local health = currentTarget.part:GetAttribute("Health") or currentTarget.part.Health
+                
+                if died == true then
+                    spawn(function() switchToNextTarget() end)
+                elseif not health or health <= 0 then
+                    spawn(function() switchToNextTarget() end)
+                else
+                    -- Update current target's position and health
+                    currentTarget.position = currentTarget.part.Position
+                    currentTarget.health = health
+                end
             end
+        elseif (currentPlayerMode ~= "" and currentPlayerMode ~= "World") or #selectedWorlds > 0 then
+            -- No current target but we have valid hunting areas, find one
+            spawn(function() switchToNextTarget() end)
         end
     end)
 end
