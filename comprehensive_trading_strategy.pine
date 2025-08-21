@@ -666,11 +666,9 @@ if liquidity_grab_low and bullish_reversal
 if liquidity_grab_high and bearish_reversal
     bearish_score += 2
 
-// Premium/Discount Zone Adjustments
-if premium_zone and buy_signal
-    bullish_score -= 1  // Reduce bullish bias in premium (expensive) zone
-if discount_zone and sell_signal
-    bearish_score -= 1  // Reduce bearish bias in discount (cheap) zone
+// Premium/Discount Zone Adjustments (LuxAlgo Style)
+// These adjustments happen after signals are calculated, not before
+// Removed circular dependency issue
 
 // ============================================================================
 // FINAL SIGNALS - Ultra Strong Conditions Only
@@ -719,6 +717,122 @@ sell_signal = strong_sell_conditions
 if not buy_signal and not sell_signal
     buy_signal := simple_buy
     sell_signal := simple_sell
+
+// ============================================================================
+// UPDATE TABLES AFTER SIGNALS ARE DECLARED
+// ============================================================================
+
+// Update tables for real-time display
+if true
+    // ============================================================================
+    // PERFORMANCE DASHBOARD - Key Metrics Only
+    // ============================================================================
+    
+    table.cell(performance_dashboard, 0, 0, "📊 PERFORMANCE", text_color=color.white, bgcolor=color.navy)
+    table.cell(performance_dashboard, 1, 0, "LIVE RESULTS", text_color=color.white, bgcolor=color.navy)
+    
+    // Win Rate - Most Important Metric
+    table.cell(performance_dashboard, 0, 1, "🏆 Win Rate", text_color=color.black)
+    win_rate_color = win_rate >= 70 ? color.green : win_rate >= 50 ? color.orange : color.red
+    win_rate_text = total_trades > 0 ? str.tostring(win_rate, "#") + "%" : "No Trades"
+    table.cell(performance_dashboard, 1, 1, win_rate_text, text_color=color.white, bgcolor=win_rate_color)
+    
+    // Total Profit - Bottom Line
+    table.cell(performance_dashboard, 0, 2, "💰 Total Profit", text_color=color.black)
+    profit_color = total_profit >= 10 ? color.green : total_profit >= 0 ? color.orange : color.red
+    profit_text = str.tostring(total_profit, "#.#") + "%"
+    table.cell(performance_dashboard, 1, 2, profit_text, text_color=color.white, bgcolor=profit_color)
+    
+    // Trade Count
+    table.cell(performance_dashboard, 0, 3, "📈 Trades", text_color=color.black)
+    trades_text = str.tostring(total_trades) + " (" + str.tostring(winning_trades) + "W/" + str.tostring(losing_trades) + "L)"
+    table.cell(performance_dashboard, 1, 3, trades_text, text_color=color.black)
+    
+    // Current Position
+    table.cell(performance_dashboard, 0, 4, "📍 Position", text_color=color.black)
+    position_text = in_long_position ? "LONG" : in_short_position ? "SHORT" : "NONE"
+    position_color = in_long_position ? color.green : in_short_position ? color.red : color.gray
+    table.cell(performance_dashboard, 1, 4, position_text, text_color=color.white, bgcolor=position_color)
+    
+    // Strategy Status
+    table.cell(performance_dashboard, 0, 5, "⚡ Status", text_color=color.black)
+    strategy_status = buy_signal ? "BUY SIGNAL" : sell_signal ? "SELL SIGNAL" : "SCANNING..."
+    status_color = buy_signal ? color.green : sell_signal ? color.red : color.blue
+    table.cell(performance_dashboard, 1, 5, strategy_status, text_color=color.white, bgcolor=status_color)
+
+    // ============================================================================
+    // TRADING DASHBOARD - Essential Info Only
+    // ============================================================================
+    
+    table.cell(trading_dashboard, 0, 0, "🎯 TRADING SIGNALS", text_color=color.white, bgcolor=color.navy)
+    table.cell(trading_dashboard, 1, 0, "LIVE ANALYSIS", text_color=color.white, bgcolor=color.navy)
+    
+    // Current Signal
+    table.cell(trading_dashboard, 0, 1, "📶 Signal", text_color=color.black)
+    signal_display = buy_signal ? "🚀 BUY" : sell_signal ? "🔻 SELL" : "⏸️ HOLD"
+    signal_bg = buy_signal ? color.green : sell_signal ? color.red : color.gray
+    table.cell(trading_dashboard, 1, 1, signal_display, text_color=color.white, bgcolor=signal_bg)
+    
+    // Score Information
+    table.cell(trading_dashboard, 0, 2, "📊 Score", text_color=color.black)
+    score_display = "Bull:" + str.tostring(bullish_score) + " Bear:" + str.tostring(bearish_score)
+    score_bg = bullish_score > bearish_score ? color.green : bearish_score > bullish_score ? color.red : color.gray
+    table.cell(trading_dashboard, 1, 2, score_display, text_color=color.white, bgcolor=score_bg)
+    
+    // Elliott Wave Status
+    table.cell(trading_dashboard, 0, 3, "🌊 Elliott Wave", text_color=color.black)
+    wave_info = current_wave > 0 ? "Wave " + str.tostring(current_wave) : "No Wave"
+    // Use the global wave_color variable instead of redeclaring
+    table.cell(trading_dashboard, 1, 3, wave_info, text_color=color.white, bgcolor=wave_color)
+    
+    // Entry/Exit Price
+    table.cell(trading_dashboard, 0, 4, "💰 Target Price", text_color=color.black)
+    if buy_signal
+        target_price = current_wave == 1 ? wave_1_entry_price : 
+           current_wave == 3 ? wave_3_entry_price : 
+           current_wave == 5 ? wave_5_entry_price : close
+        table.cell(trading_dashboard, 1, 4, "BUY: " + str.tostring(target_price, "#.##"), text_color=color.white, bgcolor=color.green)
+    else if sell_signal
+        target_price = current_wave == 2 ? wave_2_exit_price :
+           current_wave == 4 ? wave_4_exit_price :
+           current_wave == 5 ? wave_5_exit_price : close
+        table.cell(trading_dashboard, 1, 4, "SELL: " + str.tostring(target_price, "#.##"), text_color=color.white, bgcolor=color.red)
+    else
+        table.cell(trading_dashboard, 1, 4, "WAIT: " + str.tostring(close, "#.##"), text_color=color.black, bgcolor=color.gray)
+    
+    // LuxAlgo-Style Market Analysis
+    table.cell(trading_dashboard, 0, 5, "🏛️ Smart Money", text_color=color.black)
+    sm_status = smart_money_bullish ? "BULLISH" : 
+       smart_money_bearish ? "BEARISH" : 
+       confluence_bullish ? "CONFLUENCE+" : 
+       confluence_bearish ? "CONFLUENCE-" : "NEUTRAL"
+    sm_color = smart_money_bullish or confluence_bullish ? color.green : 
+       smart_money_bearish or confluence_bearish ? color.red : color.gray
+    table.cell(trading_dashboard, 1, 5, sm_status, text_color=color.white, bgcolor=sm_color)
+    
+    // LuxAlgo-Style Zone Analysis
+    table.cell(trading_dashboard, 0, 6, "📍 Price Zone", text_color=color.black)
+    zone_status = premium_zone ? "PREMIUM (Sell Zone)" : 
+       discount_zone ? "DISCOUNT (Buy Zone)" : 
+       "FAIR VALUE (Neutral)"
+    zone_color = premium_zone ? color.red : 
+       discount_zone ? color.green : color.gray
+    table.cell(trading_dashboard, 1, 6, zone_status, text_color=color.white, bgcolor=zone_color)
+    
+    // LuxAlgo-Style Trading Guide
+    table.cell(trading_dashboard, 0, 7, "💡 LuxAlgo Guide", text_color=color.black)
+    luxalgo_guide = confluence_bullish ? "⭐ Perfect Buy Setup!" :
+       confluence_bearish ? "⭐ Perfect Sell Setup!" :
+       (bos_bullish and discount_zone) ? "BOS + Discount = Buy" :
+       (bos_bearish and premium_zone) ? "BOS + Premium = Sell" :
+       (bullish_order_block and discount_zone) ? "OB + Discount = Buy" :
+       (bearish_order_block and premium_zone) ? "OB + Premium = Sell" :
+       premium_zone ? "Premium - Wait for sells" :
+       discount_zone ? "Discount - Look for buys" : "Fair value - Monitor"
+    luxalgo_color = confluence_bullish or (bos_bullish and discount_zone) ? color.green :
+       confluence_bearish or (bos_bearish and premium_zone) ? color.red :
+       premium_zone or discount_zone ? color.blue : color.gray
+    table.cell(trading_dashboard, 1, 7, luxalgo_guide, text_color=color.white, bgcolor=luxalgo_color)
 
 // ============================================================================
 // BACKTESTING AND TRADE TRACKING
@@ -1108,115 +1222,3 @@ alertcondition(rectangle_breakout_bear, title="Rectangle Breakout Bear Alert", m
 // Create clean, useful tables
 var table performance_dashboard = table.new(position.top_left, 2, 6, bgcolor=color.white, border_width=1)
 var table trading_dashboard = table.new(position.top_right, 2, 8, bgcolor=color.white, border_width=1)
-
-// Update tables for real-time display
-if true
-    // ============================================================================
-    // PERFORMANCE DASHBOARD - Key Metrics Only
-    // ============================================================================
-    
-    table.cell(performance_dashboard, 0, 0, "📊 PERFORMANCE", text_color=color.white, bgcolor=color.navy)
-    table.cell(performance_dashboard, 1, 0, "LIVE RESULTS", text_color=color.white, bgcolor=color.navy)
-    
-    // Win Rate - Most Important Metric
-    table.cell(performance_dashboard, 0, 1, "🏆 Win Rate", text_color=color.black)
-    win_rate_color = win_rate >= 70 ? color.green : win_rate >= 50 ? color.orange : color.red
-    win_rate_text = total_trades > 0 ? str.tostring(win_rate, "#") + "%" : "No Trades"
-    table.cell(performance_dashboard, 1, 1, win_rate_text, text_color=color.white, bgcolor=win_rate_color)
-    
-    // Total Profit - Bottom Line
-    table.cell(performance_dashboard, 0, 2, "💰 Total Profit", text_color=color.black)
-    profit_color = total_profit >= 10 ? color.green : total_profit >= 0 ? color.orange : color.red
-    profit_text = str.tostring(total_profit, "#.#") + "%"
-    table.cell(performance_dashboard, 1, 2, profit_text, text_color=color.white, bgcolor=profit_color)
-    
-    // Trade Count
-    table.cell(performance_dashboard, 0, 3, "📈 Trades", text_color=color.black)
-    trades_text = str.tostring(total_trades) + " (" + str.tostring(winning_trades) + "W/" + str.tostring(losing_trades) + "L)"
-    table.cell(performance_dashboard, 1, 3, trades_text, text_color=color.black)
-    
-    // Current Position
-    table.cell(performance_dashboard, 0, 4, "📍 Position", text_color=color.black)
-    position_text = in_long_position ? "LONG" : in_short_position ? "SHORT" : "NONE"
-    position_color = in_long_position ? color.green : in_short_position ? color.red : color.gray
-    table.cell(performance_dashboard, 1, 4, position_text, text_color=color.white, bgcolor=position_color)
-    
-    // Strategy Status
-    table.cell(performance_dashboard, 0, 5, "⚡ Status", text_color=color.black)
-    strategy_status = buy_signal ? "BUY SIGNAL" : sell_signal ? "SELL SIGNAL" : "SCANNING..."
-    status_color = buy_signal ? color.green : sell_signal ? color.red : color.blue
-    table.cell(performance_dashboard, 1, 5, strategy_status, text_color=color.white, bgcolor=status_color)
-
-    // ============================================================================
-    // TRADING DASHBOARD - Essential Info Only
-    // ============================================================================
-    
-    table.cell(trading_dashboard, 0, 0, "🎯 TRADING SIGNALS", text_color=color.white, bgcolor=color.navy)
-    table.cell(trading_dashboard, 1, 0, "LIVE ANALYSIS", text_color=color.white, bgcolor=color.navy)
-    
-    // Current Signal
-    table.cell(trading_dashboard, 0, 1, "📶 Signal", text_color=color.black)
-    signal_display = buy_signal ? "🚀 BUY" : sell_signal ? "🔻 SELL" : "⏸️ HOLD"
-    signal_bg = buy_signal ? color.green : sell_signal ? color.red : color.gray
-    table.cell(trading_dashboard, 1, 1, signal_display, text_color=color.white, bgcolor=signal_bg)
-    
-    // Score Information
-    table.cell(trading_dashboard, 0, 2, "📊 Score", text_color=color.black)
-    score_display = "Bull:" + str.tostring(bullish_score) + " Bear:" + str.tostring(bearish_score)
-    score_bg = bullish_score > bearish_score ? color.green : bearish_score > bullish_score ? color.red : color.gray
-    table.cell(trading_dashboard, 1, 2, score_display, text_color=color.white, bgcolor=score_bg)
-    
-    // Elliott Wave Status
-    table.cell(trading_dashboard, 0, 3, "🌊 Elliott Wave", text_color=color.black)
-    wave_info = current_wave > 0 ? "Wave " + str.tostring(current_wave) : "No Wave"
-    // Use the global wave_color variable instead of redeclaring
-    table.cell(trading_dashboard, 1, 3, wave_info, text_color=color.white, bgcolor=wave_color)
-    
-    // Entry/Exit Price
-    table.cell(trading_dashboard, 0, 4, "💰 Target Price", text_color=color.black)
-    if buy_signal
-        target_price = current_wave == 1 ? wave_1_entry_price : 
-           current_wave == 3 ? wave_3_entry_price : 
-           current_wave == 5 ? wave_5_entry_price : close
-        table.cell(trading_dashboard, 1, 4, "BUY: " + str.tostring(target_price, "#.##"), text_color=color.white, bgcolor=color.green)
-    else if sell_signal
-        target_price = current_wave == 2 ? wave_2_exit_price :
-           current_wave == 4 ? wave_4_exit_price :
-           current_wave == 5 ? wave_5_exit_price : close
-        table.cell(trading_dashboard, 1, 4, "SELL: " + str.tostring(target_price, "#.##"), text_color=color.white, bgcolor=color.red)
-    else
-        table.cell(trading_dashboard, 1, 4, "WAIT: " + str.tostring(close, "#.##"), text_color=color.black, bgcolor=color.gray)
-    
-    // LuxAlgo-Style Market Analysis
-    table.cell(trading_dashboard, 0, 5, "🏛️ Smart Money", text_color=color.black)
-    sm_status = smart_money_bullish ? "BULLISH" : 
-       smart_money_bearish ? "BEARISH" : 
-       confluence_bullish ? "CONFLUENCE+" : 
-       confluence_bearish ? "CONFLUENCE-" : "NEUTRAL"
-    sm_color = smart_money_bullish or confluence_bullish ? color.green : 
-       smart_money_bearish or confluence_bearish ? color.red : color.gray
-    table.cell(trading_dashboard, 1, 5, sm_status, text_color=color.white, bgcolor=sm_color)
-    
-    // LuxAlgo-Style Zone Analysis
-    table.cell(trading_dashboard, 0, 6, "📍 Price Zone", text_color=color.black)
-    zone_status = premium_zone ? "PREMIUM (Sell Zone)" : 
-       discount_zone ? "DISCOUNT (Buy Zone)" : 
-       "FAIR VALUE (Neutral)"
-    zone_color = premium_zone ? color.red : 
-       discount_zone ? color.green : color.gray
-    table.cell(trading_dashboard, 1, 6, zone_status, text_color=color.white, bgcolor=zone_color)
-    
-    // LuxAlgo-Style Trading Guide
-    table.cell(trading_dashboard, 0, 7, "💡 LuxAlgo Guide", text_color=color.black)
-    luxalgo_guide = confluence_bullish ? "⭐ Perfect Buy Setup!" :
-       confluence_bearish ? "⭐ Perfect Sell Setup!" :
-       (bos_bullish and discount_zone) ? "BOS + Discount = Buy" :
-       (bos_bearish and premium_zone) ? "BOS + Premium = Sell" :
-       (bullish_order_block and discount_zone) ? "OB + Discount = Buy" :
-       (bearish_order_block and premium_zone) ? "OB + Premium = Sell" :
-       premium_zone ? "Premium - Wait for sells" :
-       discount_zone ? "Discount - Look for buys" : "Fair value - Monitor"
-    luxalgo_color = confluence_bullish or (bos_bullish and discount_zone) ? color.green :
-       confluence_bearish or (bos_bearish and premium_zone) ? color.red :
-       premium_zone or discount_zone ? color.blue : color.gray
-    table.cell(trading_dashboard, 1, 7, luxalgo_guide, text_color=color.white, bgcolor=luxalgo_color)
