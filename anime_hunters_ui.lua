@@ -607,20 +607,106 @@ local function disconnectTargetMonitoring()
     end
 end
 
-local function findNextTarget()
-    -- Check if player is in gamemode or world
+-- New radius-based enemy detection (1000 studs)
+local function getAllEnemiesInRadius()
+    local enemies = {}
+    local playerPos = rootPart.Position
+    
+    -- Check if player is in gamemode first
     if currentPlayerMode ~= "" and currentPlayerMode ~= "World" then
         -- In gamemode - get enemies from gamemode path
-        local enemies = getEnemiesInGamemode(currentPlayerMode)
-        if #enemies == 0 then return nil end
-        return findBestTarget(enemies)
+        local gamemodeFolder = workspace:FindFirstChild("Server")
+        if gamemodeFolder then
+            gamemodeFolder = gamemodeFolder:FindFirstChild("Enemies")
+            if gamemodeFolder then
+                gamemodeFolder = gamemodeFolder:FindFirstChild("Gamemodes")
+                if gamemodeFolder then
+                    gamemodeFolder = gamemodeFolder:FindFirstChild(currentPlayerMode)
+                    if gamemodeFolder then
+                        for _, part in pairs(gamemodeFolder:GetChildren()) do
+                            if part:IsA("BasePart") and part:GetAttribute("ID") then
+                                local died = part:GetAttribute("Died")
+                                local health = part:GetAttribute("Health") or part.Health
+                                local distance = (playerPos - part.Position).Magnitude
+                                
+                                if not died and health and health > 0 and distance <= 1000 then
+                                    table.insert(enemies, {
+                                        part = part,
+                                        id = part:GetAttribute("ID"),
+                                        health = health,
+                                        position = part.Position,
+                                        name = part.Name,
+                                        distance = distance
+                                    })
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
     else
-        -- In world - get enemies from selected worlds
-        if #selectedWorlds == 0 then return nil end
-        local enemies = getAllEnemiesInSelectedWorlds()
-        if #enemies == 0 then return nil end
-        return findBestTarget(enemies)
+        -- In world - scan all worlds for enemies within radius
+        local serverFolder = workspace:FindFirstChild("Server")
+        if serverFolder then
+            local enemiesFolder = serverFolder:FindFirstChild("Enemies")
+            if enemiesFolder then
+                local worldFolder = enemiesFolder:FindFirstChild("World")
+                if worldFolder then
+                    -- Scan all worlds for enemies within 1000 studs
+                    for _, world in pairs(worldFolder:GetChildren()) do
+                        if world:IsA("Folder") then
+                            for _, part in pairs(world:GetChildren()) do
+                                if part:IsA("BasePart") and part:GetAttribute("ID") then
+                                    local died = part:GetAttribute("Died")
+                                    local health = part:GetAttribute("Health") or part.Health
+                                    local distance = (playerPos - part.Position).Magnitude
+                                    
+                                    if not died and health and health > 0 and distance <= 1000 then
+                                        table.insert(enemies, {
+                                            part = part,
+                                            id = part:GetAttribute("ID"),
+                                            health = health,
+                                            position = part.Position,
+                                            name = part.Name,
+                                            distance = distance,
+                                            world = world.Name
+                                        })
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
     end
+    
+    return enemies
+end
+
+local function findNextTarget()
+    local enemies = getAllEnemiesInRadius()
+    if #enemies == 0 then return nil end
+    
+    -- Filter by selected enemy names if any are chosen
+    if #selectedEnemyNames > 0 then
+        local filteredEnemies = {}
+        for _, enemy in pairs(enemies) do
+            for _, selectedName in pairs(selectedEnemyNames) do
+                if enemy.name == selectedName then
+                    table.insert(filteredEnemies, enemy)
+                    break
+                end
+            end
+        end
+        
+        if #filteredEnemies > 0 then
+            enemies = filteredEnemies
+        end
+    end
+    
+    return findBestTarget(enemies)
 end
 
 local function switchToNextTarget()
@@ -917,42 +1003,10 @@ end
 
 -- Main Tab Elements
 Tabs.MainTab:Paragraph({
-    Title = "Multi-World Enemy Targeting System",
-    Desc = "Select multiple worlds and enemy types to hunt. System will attack enemies within 10 studs and immediately switch when current target dies.",
+    Title = "Radius-Based Enemy Targeting System",
+    Desc = "Automatically detects and targets enemies within 1000 studs. No world selection needed - just choose enemy types and start hunting!",
     Image = "crosshair",
     Color = "Blue",
-})
-
--- World Selection
-local WorldDropdown = Tabs.MainTab:Dropdown({
-    Title = "Select Worlds",
-    Desc = "Choose which worlds to hunt enemies in (can select multiple)",
-    Icon = "globe",
-    Values = getAllWorlds(),
-    Value = {},
-    Multi = true,
-    AllowNone = true,
-    Callback = function(worlds)
-        selectedWorlds = worlds or {}
-        currentTarget = nil -- Reset target when worlds change
-        disconnectTargetMonitoring() -- Disconnect old target monitoring
-        
-        if #selectedWorlds > 0 then
-            WindUI:Notify({
-                Title = "Worlds Selected",
-                Content = "Selected " .. #selectedWorlds .. " world(s). Use Refresh Enemy Names to update list.",
-                Icon = "map-pin",
-                Duration = 3,
-            })
-        else
-            WindUI:Notify({
-                Title = "No Worlds Selected",
-                Content = "Please select at least one world",
-                Icon = "alert-triangle",
-                Duration = 2,
-            })
-        end
-    end
 })
 
 -- Enemy Name Selection
@@ -989,36 +1043,38 @@ local EnemyNameDropdown = Tabs.MainTab:Dropdown({
 
 Tabs.MainTab:Button({
     Title = "Refresh Enemy Names",
-    Desc = "Update the list of available enemy names from selected worlds",
+    Desc = "Update the list of available enemy names from nearby enemies",
     Icon = "refresh-cw",
     Callback = function()
-        if #selectedWorlds > 0 then
-            local success, enemyNames = pcall(function()
-                return getEnemyNamesFromModuleScript(selectedWorlds)
-            end)
+        local success, enemyNames = pcall(function()
+            local nearbyEnemies = getAllEnemiesInRadius()
+            local nameSet = {}
+            local names = {}
             
-            if success and enemyNames then
-                EnemyNameDropdown:Refresh(enemyNames)
-                WindUI:Notify({
-                    Title = "Enemy Names Refreshed",
-                    Content = "Found " .. #enemyNames .. " different enemy types",
-                    Icon = "users",
-                    Duration = 2,
-                })
-            else
-                WindUI:Notify({
-                    Title = "Refresh Failed",
-                    Content = "Error loading enemy names from module scripts",
-                    Icon = "alert-triangle",
-                    Duration = 3,
-                })
+            for _, enemy in pairs(nearbyEnemies) do
+                if not nameSet[enemy.name] then
+                    nameSet[enemy.name] = true
+                    table.insert(names, enemy.name)
+                end
             end
+            
+            return names
+        end)
+        
+        if success and enemyNames then
+            EnemyNameDropdown:Refresh(enemyNames)
+            WindUI:Notify({
+                Title = "Enemy Names Refreshed",
+                Content = "Found " .. #enemyNames .. " enemy types within 1000 studs",
+                Icon = "users",
+                Duration = 2,
+            })
         else
             WindUI:Notify({
-                Title = "No Worlds Selected",
-                Content = "Please select worlds first!",
+                Title = "Refresh Failed",
+                Content = "Error scanning for nearby enemies",
                 Icon = "alert-triangle",
-                Duration = 2,
+                Duration = 3,
             })
         end
     end
@@ -1083,33 +1139,24 @@ Tabs.MainTab:Divider()
 
 local AutoAttackToggle = Tabs.MainTab:Toggle({
     Title = "Auto Attack",
-    Desc = "Enable/disable automatic enemy targeting and attacking",
+    Desc = "Enable/disable automatic enemy targeting and attacking within 1000 studs",
     Icon = "sword",
     Value = false,
     Callback = function(state)
         autoAttackEnabled = state
         if state then
-            if #selectedWorlds == 0 then
-                WindUI:Notify({
-                    Title = "Error",
-                    Content = "Please select at least one world first!",
-                    Icon = "alert-triangle",
-                    Duration = 3,
-                })
-                AutoAttackToggle:SetValue(false)
-                return
-            end
-            
             startAutoAttack()
             startHealthMonitoring()
+            startModeMonitoring() -- Start mode monitoring for gamemode support
             WindUI:Notify({
                 Title = "Auto Attack",
-                Content = "Auto Attack enabled for " .. #selectedWorlds .. " world(s)!",
+                Content = "Auto Attack enabled! Scanning 1000 stud radius...",
                 Icon = "check",
                 Duration = 3,
             })
         else
             stopAutoAttack()
+            stopModeMonitoring()
             WindUI:Notify({
                 Title = "Auto Attack",
                 Content = "Auto Attack disabled!",
@@ -1117,7 +1164,6 @@ local AutoAttackToggle = Tabs.MainTab:Toggle({
                 Duration = 3,
             })
         end
-
     end
 })
 
