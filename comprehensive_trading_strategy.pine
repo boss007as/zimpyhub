@@ -1169,8 +1169,7 @@ if true
     // Elliott Wave Status
     table.cell(trading_dashboard, 0, 3, "🌊 Elliott Wave", text_color=color.black)
     wave_info = current_wave > 0 ? "Wave " + str.tostring(current_wave) : "No Wave"
-    wave_color = current_wave == 1 or current_wave == 3 or current_wave == 5 ? color.green : 
-       current_wave == 2 or current_wave == 4 ? color.orange : color.gray
+    // Use the global wave_color variable instead of redeclaring
     table.cell(trading_dashboard, 1, 3, wave_info, text_color=color.white, bgcolor=wave_color)
     
     // Entry/Exit Price
