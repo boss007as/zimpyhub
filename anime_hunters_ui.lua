@@ -107,7 +107,7 @@ Window:SelectTab(1)
 -- Utility Functions
 local function getAllWorlds()
     local worlds = {}
-    local enemiesFolder = workspace:FindFirstChild("Client")
+    local enemiesFolder = workspace:FindFirstChild("Server")
     if enemiesFolder then
         enemiesFolder = enemiesFolder:FindFirstChild("Enemies")
         if enemiesFolder then
@@ -164,7 +164,7 @@ end
 
 local function getEnemiesInWorld(worldName)
     local enemies = {}
-    local worldFolder = workspace:FindFirstChild("Client")
+    local worldFolder = workspace:FindFirstChild("Server")
     if worldFolder then
         worldFolder = worldFolder:FindFirstChild("Enemies")
         if worldFolder then
@@ -205,6 +205,59 @@ local function getAllEnemiesInSelectedWorlds()
     end
     
     return allEnemies
+end
+
+-- Better world detection based on player's current location
+local function detectCurrentWorld()
+    local playerPos = rootPart.Position
+    local closestWorld = ""
+    local closestDistance = math.huge
+    
+    local enemiesFolder = workspace:FindFirstChild("Server")
+    if not enemiesFolder then return "" end
+    
+    enemiesFolder = enemiesFolder:FindFirstChild("Enemies")
+    if not enemiesFolder then return "" end
+    
+    enemiesFolder = enemiesFolder:FindFirstChild("World")
+    if not enemiesFolder then return "" end
+    
+    -- Check all worlds for nearby enemies
+    for _, worldFolder in pairs(enemiesFolder:GetChildren()) do
+        if worldFolder:IsA("Folder") and #worldFolder:GetChildren() > 0 then
+            for _, part in pairs(worldFolder:GetChildren()) do
+                if part:IsA("BasePart") and part:GetAttribute("ID") then
+                    local died = part:GetAttribute("Died")
+                    local health = part:GetAttribute("Health") or part.Health
+                    
+                    if not died and health and health > 0 then
+                        local distance = (playerPos - part.Position).Magnitude
+                        if distance <= 100 and distance < closestDistance then
+                            closestDistance = distance
+                            closestWorld = worldFolder.Name
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    return closestWorld
+end
+
+-- Auto-detect current world and suggest it
+local function autoDetectAndSuggestWorld()
+    local detectedWorld = detectCurrentWorld()
+    if detectedWorld ~= "" then
+        WindUI:Notify({
+            Title = "World Detected",
+            Content = "Detected world: " .. detectedWorld .. ". Click 'Auto-Select Current World' to use it.",
+            Icon = "map-pin",
+            Duration = 5,
+        })
+        return detectedWorld
+    end
+    return ""
 end
 
 local function isInAttackRange(target)
@@ -781,6 +834,53 @@ local SpeedSlider = Tabs.MainTab:Slider({
 Tabs.MainTab:Divider()
 
 Tabs.MainTab:Button({
+    Title = "Auto-Select Current World",
+    Desc = "Automatically detect and select the world you're currently in",
+    Icon = "map-pin",
+    Callback = function()
+        local detectedWorld = detectCurrentWorld()
+        if detectedWorld ~= "" then
+            -- Add to selected worlds if not already selected
+            local alreadySelected = false
+            for _, world in pairs(selectedWorlds) do
+                if world == detectedWorld then
+                    alreadySelected = true
+                    break
+                end
+            end
+            
+            if not alreadySelected then
+                table.insert(selectedWorlds, detectedWorld)
+                WorldDropdown:Select(selectedWorlds)
+                
+                -- Update enemy names
+                local success, enemyNames = pcall(function()
+                    return getEnemyNamesFromModuleScript(selectedWorlds)
+                end)
+                
+                if success and enemyNames then
+                    EnemyNameDropdown:Refresh(enemyNames)
+                end
+            end
+            
+            WindUI:Notify({
+                Title = "World Auto-Selected",
+                Content = "Added " .. detectedWorld .. " to selected worlds",
+                Icon = "check",
+                Duration = 3,
+            })
+        else
+            WindUI:Notify({
+                Title = "No World Detected",
+                Content = "Move closer to enemies (within 100 studs) to detect world",
+                Icon = "search-x",
+                Duration = 3,
+            })
+        end
+    end
+})
+
+Tabs.MainTab:Button({
     Title = "Refresh Worlds",
     Desc = "Update the list of available worlds",
     Icon = "refresh-cw",
@@ -802,12 +902,85 @@ Tabs.MainTab:Button({
     Icon = "users",
     Callback = function()
         if #selectedWorlds > 0 then
-            local enemyNames = getEnemyNamesFromModuleScript(selectedWorlds)
-            EnemyNameDropdown:Refresh(enemyNames)
+            local success, enemyNames = pcall(function()
+                return getEnemyNamesFromModuleScript(selectedWorlds)
+            end)
+            
+            if success and enemyNames then
+                EnemyNameDropdown:Refresh(enemyNames)
+                WindUI:Notify({
+                    Title = "Enemy Names Refreshed",
+                    Content = "Found " .. #enemyNames .. " different enemy types",
+                    Icon = "users",
+                    Duration = 2,
+                })
+                print("Successfully refreshed enemy names: " .. table.concat(enemyNames, ", "))
+            else
+                WindUI:Notify({
+                    Title = "Refresh Failed",
+                    Content = "Error loading enemy names from module scripts",
+                    Icon = "alert-triangle",
+                    Duration = 3,
+                })
+                print("Error refreshing enemy names")
+            end
+        else
             WindUI:Notify({
-                Title = "Enemy Names Refreshed",
-                Content = "Found " .. #enemyNames .. " different enemy types",
-                Icon = "users",
+                Title = "No Worlds Selected",
+                Content = "Please select worlds first!",
+                Icon = "alert-triangle",
+                Duration = 2,
+            })
+        end
+    end
+})
+
+Tabs.MainTab:Button({
+    Title = "Debug: Show Enemy Info",
+    Desc = "Show information about enemies in selected worlds",
+    Icon = "bug",
+    Callback = function()
+        if #selectedWorlds > 0 then
+            for _, worldName in pairs(selectedWorlds) do
+                local enemies = getEnemiesInWorld(worldName)
+                print("=== World: " .. worldName .. " ===")
+                print("Found " .. #enemies .. " enemies")
+                
+                for i, enemy in pairs(enemies) do
+                    print("Enemy " .. i .. ": " .. enemy.name .. " (ID: " .. enemy.id .. ", HP: " .. enemy.health .. ")")
+                end
+                
+                if #enemies == 0 then
+                    print("No enemies found in " .. worldName)
+                    -- Check if the world folder exists
+                    local worldFolder = workspace:FindFirstChild("Server")
+                    if worldFolder then
+                        worldFolder = worldFolder:FindFirstChild("Enemies")
+                        if worldFolder then
+                            worldFolder = worldFolder:FindFirstChild("World")
+                            if worldFolder then
+                                worldFolder = worldFolder:FindFirstChild(worldName)
+                                if worldFolder then
+                                    print("World folder exists with " .. #worldFolder:GetChildren() .. " children")
+                                else
+                                    print("World folder '" .. worldName .. "' not found")
+                                end
+                            else
+                                print("World parent folder not found")
+                            end
+                        else
+                            print("Enemies folder not found")
+                        end
+                    else
+                        print("Server folder not found in workspace")
+                    end
+                end
+            end
+            
+            WindUI:Notify({
+                Title = "Debug Info",
+                Content = "Enemy information printed to console",
+                Icon = "terminal",
                 Duration = 2,
             })
         else
