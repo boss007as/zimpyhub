@@ -862,7 +862,8 @@ local function startAutoAttack()
         
         -- Check attack speed timing
         local currentTime = tick()
-        if currentTime - lastAttackTime < autoAttackSpeed then
+        local speedValue = tonumber(autoAttackSpeed) or 0.1
+        if currentTime - lastAttackTime < speedValue then
             return -- Not enough time passed
         end
         
@@ -1181,8 +1182,7 @@ local TweenSpeedSlider = Tabs.MainTab:Slider({
     },
     Step = 0.1,
     Callback = function(value)
-        tweenSpeed = value
-
+        tweenSpeed = tonumber(value) or 1.0
     end
 })
 
@@ -1228,8 +1228,7 @@ local SpeedSlider = Tabs.MainTab:Slider({
     },
     Step = 0.01,
     Callback = function(value)
-        autoAttackSpeed = value
-
+        autoAttackSpeed = tonumber(value) or 0.1
     end
 })
 
