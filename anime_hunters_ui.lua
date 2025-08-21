@@ -194,7 +194,7 @@ end
 local function isInAttackRange(target)
     if not target then return false end
     local distance = (rootPart.Position - target.position).Magnitude
-    return distance <= 5
+    return distance <= 10
 end
 
 local function findBestTarget(enemies)
@@ -264,9 +264,9 @@ local function moveToTarget(target)
     
     local targetPos = target.position
     local offset = Vector3.new(
-        math.random(-5, 5),
+        math.random(-10, 10),
         0,
-        math.random(-5, 5)
+        math.random(-10, 10)
     )
     local finalPos = targetPos + offset
     
@@ -402,7 +402,7 @@ local function startAutoAttack()
                         if not tooFarNotified or lastNotifiedTarget ~= currentTarget.id then
                             WindUI:Notify({
                                 Title = "Too Far",
-                                Content = "Move closer to attack (within 5 studs)",
+                                Content = "Move closer to attack (within 10 studs)",
                                 Icon = "move",
                                 Duration = 2,
                             })
@@ -536,7 +536,7 @@ end
 -- Main Tab Elements
 Tabs.MainTab:Paragraph({
     Title = "Auto Enemy Detection System",
-    Desc = "Automatically detects your current world and targets enemies based on your preferences. System will detect enemies within 100 studs and attack when within 5 studs.",
+    Desc = "Automatically detects your current world and targets enemies based on your preferences. System will detect enemies within 100 studs and attack when within 10 studs.",
     Image = "crosshair",
     Color = "Blue",
 })
