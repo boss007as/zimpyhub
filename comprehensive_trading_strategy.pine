@@ -1191,20 +1191,20 @@ if true
     // LuxAlgo-Style Market Analysis
     table.cell(trading_dashboard, 0, 5, "🏛️ Smart Money", text_color=color.black)
     sm_status = smart_money_bullish ? "BULLISH" : 
-               smart_money_bearish ? "BEARISH" : 
-               confluence_bullish ? "CONFLUENCE+" : 
-               confluence_bearish ? "CONFLUENCE-" : "NEUTRAL"
+       smart_money_bearish ? "BEARISH" : 
+       confluence_bullish ? "CONFLUENCE+" : 
+       confluence_bearish ? "CONFLUENCE-" : "NEUTRAL"
     sm_color = smart_money_bullish or confluence_bullish ? color.green : 
-              smart_money_bearish or confluence_bearish ? color.red : color.gray
+       smart_money_bearish or confluence_bearish ? color.red : color.gray
     table.cell(trading_dashboard, 1, 5, sm_status, text_color=color.white, bgcolor=sm_color)
     
     // LuxAlgo-Style Zone Analysis
     table.cell(trading_dashboard, 0, 6, "📍 Price Zone", text_color=color.black)
     zone_status = premium_zone ? "PREMIUM (Sell Zone)" : 
-                 discount_zone ? "DISCOUNT (Buy Zone)" : 
-                 "FAIR VALUE (Neutral)"
+       discount_zone ? "DISCOUNT (Buy Zone)" : 
+       "FAIR VALUE (Neutral)"
     zone_color = premium_zone ? color.red : 
-                discount_zone ? color.green : color.gray
+       discount_zone ? color.green : color.gray
     table.cell(trading_dashboard, 1, 6, zone_status, text_color=color.white, bgcolor=zone_color)
     
     // LuxAlgo-Style Trading Guide
