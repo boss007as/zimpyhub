@@ -20,6 +20,7 @@ local tooFarNotified = false
 local targetDeathConnection = nil
 local targetHealthConnection = nil
 local lockTarget = false
+local isMovingToTarget = false
 
 -- Variables for Auto Join Mode
 local autoJoinEnabled = false
@@ -538,7 +539,12 @@ local function findBestTarget(enemies)
 end
 
 local function moveToTarget(target)
-    if not target or movementType == "Idle" then return end
+    if not target or movementType == "Idle" then 
+        isMovingToTarget = false
+        return 
+    end
+    
+    isMovingToTarget = true -- Set movement flag to prevent target switching
     
     local targetPos = target.position
     local offset = Vector3.new(
@@ -550,11 +556,17 @@ local function moveToTarget(target)
     
     if movementType == "TP" then
         rootPart.CFrame = CFrame.new(finalPos)
+        isMovingToTarget = false -- TP is instant
         
     elseif movementType == "Tween" then
         local tweenInfo = TweenInfo.new(tweenSpeed, Enum.EasingStyle.Linear)
         local tween = TweenService:Create(rootPart, tweenInfo, {CFrame = CFrame.new(finalPos)})
         tween:Play()
+        
+        -- Clear movement flag when tween completes
+        tween.Completed:Connect(function()
+            isMovingToTarget = false
+        end)
         
     elseif movementType == "Walk" then
         local path = PathfindingService:CreatePath()
@@ -582,8 +594,11 @@ local function moveToTarget(target)
                         movementConnection:Disconnect()
                         movementConnection = nil
                     end
+                    isMovingToTarget = false -- Clear movement flag when path complete
                 end
             end)
+        else
+            isMovingToTarget = false -- Clear flag if pathfinding fails
         end
     end
 end
@@ -728,20 +743,26 @@ local function getAllEnemiesInRadius()
 end
 
 local function findNextTarget()
-    -- If target is locked and still valid, keep attacking it
-    if lockTarget and currentTarget then
+    -- If target is locked OR currently moving to target, keep current target
+    if (lockTarget or isMovingToTarget) and currentTarget then
         if currentTarget.part and currentTarget.part.Parent then
             local died = currentTarget.part:GetAttribute("Died")
             local health = currentTarget.part:GetAttribute("Health") or currentTarget.part.Health
             if not died and health and health > 0 then
-                -- Update locked target's position and health
+                -- Update target's position and health
                 currentTarget.position = currentTarget.part.Position
                 currentTarget.health = tonumber(health) or 0
                 return currentTarget
             end
         end
-        -- Locked target is dead/invalid, unlock and find new target
+        -- Target is dead/invalid, unlock and stop movement
         lockTarget = false
+        isMovingToTarget = false
+    end
+    
+    -- Only find new target if not currently moving (prevents indecisive switching)
+    if isMovingToTarget then
+        return currentTarget
     end
     
     local enemies = getAllEnemiesInRadius()
@@ -826,6 +847,9 @@ local function startAutoAttack()
         end
         
         if isInAttackRange(currentTarget) then
+            -- Clear movement flag when we're close enough to attack
+            isMovingToTarget = false
+            
             -- Protected attack call to prevent script breaking
             spawn(function()
                 -- Store target ID before attack to prevent nil access
@@ -1160,7 +1184,7 @@ Tabs.MainTab:Divider()
 
 local LockTargetToggle = Tabs.MainTab:Toggle({
     Title = "Lock Target",
-    Desc = "Lock onto current target and don't switch to other enemies",
+    Desc = "Lock onto current target and don't switch to other enemies (automatically locks during movement)",
     Icon = "lock",
     Value = false,
     Callback = function(state)
