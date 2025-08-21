@@ -406,7 +406,6 @@ local function startAutoHatch()
         if playerStars < hatchPrice then
             -- Not enough currency, stop auto hatch
             autoHatchEnabled = false
-            AutoHatchToggle:SetValue(false)
             WindUI:Notify({
                 Title = "Insufficient Currency",
                 Content = "Not enough Stars for " .. hatchWorld .. ". Auto Hatch stopped.",
@@ -1141,10 +1140,8 @@ local function startModeMonitoring()
         disconnectTargetMonitoring()
         isWalkingToTarget = false
         
-        -- Update status display
+        -- Update status display and handle mode changes
         if currentPlayerMode ~= "World" then
-            ModeStatus:SetTitle("Current Mode: " .. currentPlayerMode)
-            ModeStatus:SetDesc("Currently in gamemode. Auto-targeting gamemode enemies.")
             WindUI:Notify({
                 Title = "Mode Changed",
                 Content = "Now in: " .. currentPlayerMode,
@@ -1152,9 +1149,6 @@ local function startModeMonitoring()
                 Duration = 2,
             })
         else
-            ModeStatus:SetTitle("Current Mode: World")
-            ModeStatus:SetDesc("Not in any gamemode currently.")
-            
             -- Auto teleport back to saved location when leaving gamemode
             if previousMode ~= "World" and previousMode ~= "" then
                 WindUI:Notify({
@@ -1169,6 +1163,14 @@ local function startModeMonitoring()
                 end)
             end
         end
+        
+        -- Update mode status display if UI elements exist
+        spawn(function()
+            wait(0.1) -- Small delay to ensure UI elements are loaded
+            if ModeStatus then
+                updateModeStatusDisplay()
+            end
+        end)
     end)
     
     -- Set initial player mode
@@ -2118,10 +2120,22 @@ spawn(function()
     end
 end)
 
+-- Update mode status display after UI elements are created
+local function updateModeStatusDisplay()
+    if currentPlayerMode ~= "World" then
+        ModeStatus:SetTitle("Current Mode: " .. currentPlayerMode)
+        ModeStatus:SetDesc("Currently in gamemode. Auto-targeting gamemode enemies.")
+    else
+        ModeStatus:SetTitle("Current Mode: World")
+        ModeStatus:SetDesc("Not in any gamemode currently.")
+    end
+end
+
 -- Auto-load config on startup
 spawn(function()
     wait(1) -- Wait a moment for everything to initialize
     myConfig:Load()
+    updateModeStatusDisplay() -- Update status display
 end)
 
 print("Anime Hunters script loaded successfully!")
