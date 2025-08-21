@@ -21,6 +21,13 @@ local targetDeathConnection = nil
 local targetHealthConnection = nil
 local isWalkingToTarget = false
 
+-- Variables for Auto Hatch
+local autoHatchEnabled = false
+local hatchWorld = ""
+local hatchMode = "Single"
+local hatchSpeed = 0.5
+local hatchConnection = nil
+
 -- Variables for Auto Join Mode
 local autoJoinEnabled = false
 local selectedModes = {}
@@ -284,6 +291,82 @@ local function getAvailableGamemodes()
         end
     end
     return modes
+end
+
+-- Get hatch worlds from workspace.Client.Enemies.World
+local function getHatchWorlds()
+    local worlds = {}
+    local clientFolder = workspace:FindFirstChild("Client")
+    if clientFolder then
+        local enemiesFolder = clientFolder:FindFirstChild("Enemies")
+        if enemiesFolder then
+            local worldFolder = enemiesFolder:FindFirstChild("World")
+            if worldFolder then
+                for _, world in pairs(worldFolder:GetChildren()) do
+                    if world:IsA("Folder") then
+                        table.insert(worlds, world.Name)
+                    end
+                end
+            end
+        end
+    end
+    return worlds
+end
+
+-- Auto hatch function
+local lastHatchTime = 0
+
+local function startAutoHatch()
+    if hatchConnection then
+        hatchConnection:Disconnect()
+    end
+    
+    hatchConnection = RunService.Heartbeat:Connect(function()
+        if not autoHatchEnabled or hatchWorld == "" then return end
+        
+        -- Check hatch speed timing
+        local currentTime = tick()
+        local speedValue = tonumber(hatchSpeed) or 0.5
+        if currentTime - lastHatchTime < speedValue then
+            return -- Not enough time passed
+        end
+        
+        -- Protected hatch call
+        spawn(function()
+            local success, err = pcall(function()
+                if hatchMode == "Multi" then
+                    -- Multi hatch logic (you'll need to provide the correct remote structure)
+                    local args = {
+                        "Hatch",
+                        hatchWorld,
+                        "Multi"
+                    }
+                    game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Signal"):FireServer(unpack(args))
+                else
+                    -- Single hatch logic
+                    local args = {
+                        "Hatch",
+                        hatchWorld,
+                        "Single"
+                    }
+                    game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Signal"):FireServer(unpack(args))
+                end
+            end)
+            
+            if not success then
+                warn("Hatch failed: " .. tostring(err))
+            end
+        end)
+        
+        lastHatchTime = currentTime
+    end)
+end
+
+local function stopAutoHatch()
+    if hatchConnection then
+        hatchConnection:Disconnect()
+        hatchConnection = nil
+    end
 end
 
 -- Save current location
@@ -929,6 +1012,7 @@ local function stopAutoAttack()
         movementConnection = nil
     end
     disconnectTargetMonitoring()
+    stopAutoHatch() -- Also stop auto hatch when stopping auto attack
     currentTarget = nil
     tooFarNotified = false
     isWalkingToTarget = false
@@ -1352,6 +1436,116 @@ Tabs.MainTab:Button({
     end
 })
 
+-- Auto Hatch Section
+Tabs.MainTab:Divider()
+
+Tabs.MainTab:Paragraph({
+    Title = "Auto Hatch System",
+    Desc = "Automatically hatch eggs/items from selected worlds. Choose single or multi hatch mode.",
+    Image = "egg",
+    Color = "Orange",
+})
+
+-- Hatch World Selection
+local HatchWorldDropdown = Tabs.MainTab:Dropdown({
+    Title = "Hatch World",
+    Desc = "Select world to hatch from",
+    Icon = "globe",
+    Values = getHatchWorlds(),
+    Value = "",
+    AllowNone = true,
+    Callback = function(world)
+        hatchWorld = world or ""
+        if hatchWorld ~= "" then
+            WindUI:Notify({
+                Title = "Hatch World Selected",
+                Content = "Will hatch from: " .. hatchWorld,
+                Icon = "map-pin",
+                Duration = 2,
+            })
+        else
+            WindUI:Notify({
+                Title = "No Hatch World",
+                Content = "Auto hatch disabled",
+                Icon = "x",
+                Duration = 2,
+            })
+        end
+    end
+})
+
+-- Hatch Mode Selection
+local HatchModeDropdown = Tabs.MainTab:Dropdown({
+    Title = "Hatch Mode",
+    Desc = "Choose hatching method",
+    Icon = "layers",
+    Values = {"Single", "Multi"},
+    Value = "Single",
+    Callback = function(mode)
+        hatchMode = mode or "Single"
+        WindUI:Notify({
+            Title = "Hatch Mode",
+            Content = "Set to: " .. hatchMode,
+            Icon = "settings",
+            Duration = 2,
+        })
+    end
+})
+
+-- Hatch Speed Slider
+local HatchSpeedSlider = Tabs.MainTab:Slider({
+    Title = "Hatch Speed",
+    Desc = "Adjust the delay between hatches (lower = faster)",
+    Value = {
+        Min = 0.1,
+        Max = 5.0,
+        Default = 0.5,
+    },
+    Step = 0.1,
+    Callback = function(value)
+        hatchSpeed = tonumber(value) or 0.5
+    end
+})
+
+-- Auto Hatch Toggle
+local AutoHatchToggle = Tabs.MainTab:Toggle({
+    Title = "Auto Hatch",
+    Desc = "Enable/disable automatic hatching",
+    Icon = "egg",
+    Value = false,
+    Callback = function(state)
+        autoHatchEnabled = state
+        if state then
+            if hatchWorld == "" then
+                WindUI:Notify({
+                    Title = "Error",
+                    Content = "Please select a hatch world first!",
+                    Icon = "alert-triangle",
+                    Duration = 3,
+                })
+                AutoHatchToggle:SetValue(false)
+                return
+            end
+            
+            startAutoHatch()
+            WindUI:Notify({
+                Title = "Auto Hatch",
+                Content = "Auto Hatch enabled for " .. hatchWorld .. " (" .. hatchMode .. " mode)",
+                Icon = "check",
+                Duration = 3,
+            })
+        else
+            stopAutoHatch()
+            WindUI:Notify({
+                Title = "Auto Hatch",
+                Content = "Auto Hatch disabled!",
+                Icon = "x",
+                Duration = 3,
+            })
+        end
+    end
+})
+
 -- Gamemode Tab Elements
 Tabs.GamemodeTab:Paragraph({
     Title = "Auto Join Gamemode System",
@@ -1563,6 +1757,10 @@ myConfig:Register("selectedEnemyNames", EnemyNameDropdown)
 myConfig:Register("targetingMode", TargetingDropdown)
 myConfig:Register("movementType", MovementDropdown)
 myConfig:Register("tweenSpeed", TweenSpeedSlider)
+myConfig:Register("hatchWorld", HatchWorldDropdown)
+myConfig:Register("hatchMode", HatchModeDropdown)
+myConfig:Register("hatchSpeed", HatchSpeedSlider)
+myConfig:Register("autoHatchEnabled", AutoHatchToggle)
 myConfig:Register("selectedModes", GamemodeDropdown)
 myConfig:Register("autoJoinEnabled", AutoJoinToggle)
 myConfig:Register("autoLeaveEnabled", AutoLeaveToggle)
@@ -1621,6 +1819,10 @@ Tabs.ConfigTab:Button({
         TargetingDropdown:Select("Nearest")
         MovementDropdown:Select("Idle")
         TweenSpeedSlider:SetValue(1.0)
+        HatchWorldDropdown:Select("")
+        HatchModeDropdown:Select("Single")
+        HatchSpeedSlider:SetValue(0.5)
+        AutoHatchToggle:SetValue(false)
         GamemodeDropdown:Select({})
         AutoJoinToggle:SetValue(false)
         AutoLeaveToggle:SetValue(false)
@@ -1634,6 +1836,10 @@ Tabs.ConfigTab:Button({
         targetingMode = "Nearest"
         movementType = "Idle"
         tweenSpeed = 1.0
+        hatchWorld = ""
+        hatchMode = "Single"
+        hatchSpeed = 0.5
+        autoHatchEnabled = false
         selectedModes = {}
         autoJoinEnabled = false
         autoLeaveEnabled = false
