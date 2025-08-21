@@ -949,6 +949,7 @@ local function startModeMonitoring()
     -- Monitor player's current mode with attribute change signal
     playerModeConnection = player:GetAttributeChangedSignal("Mode"):Connect(function()
         local newPlayerMode = player:GetAttribute("Mode") or "World"
+        local previousMode = currentPlayerMode
         currentPlayerMode = newPlayerMode
         
         -- Reset current target when mode changes
@@ -969,6 +970,20 @@ local function startModeMonitoring()
         else
             ModeStatus:SetTitle("Current Mode: World")
             ModeStatus:SetDesc("Not in any gamemode currently.")
+            
+            -- Auto teleport back to saved location when leaving gamemode
+            if previousMode ~= "World" and previousMode ~= "" then
+                WindUI:Notify({
+                    Title = "Left Gamemode",
+                    Content = "Left " .. previousMode .. ", returning to saved location...",
+                    Icon = "log-out",
+                    Duration = 2,
+                })
+                spawn(function()
+                    wait(1) -- Small delay to ensure mode change is complete
+                    teleportToSavedLocation()
+                end)
+            end
         end
     end)
     
