@@ -26,6 +26,8 @@ local autoJoinEnabled = false
 local selectedModes = {}
 local autoLeaveEnabled = false
 local leaveAtTime = 30
+local leaveByWave = false
+local leaveAtWave = 5
 local currentPlayerMode = ""
 local modeMonitorConnection = nil
 local playerModeConnection = nil
@@ -1003,9 +1005,20 @@ local function startModeMonitoring()
                             break -- Only join one at a time
                         end
                         
-                        -- Auto leave if timer is low and auto leave is enabled
-                        if autoLeaveEnabled and currentPlayerMode == modeName and timer <= leaveAtTime then
-                            spawn(function() leaveGamemode() end)
+                        -- Auto leave based on timer or wave
+                        if autoLeaveEnabled and currentPlayerMode == modeName then
+                            if leaveByWave then
+                                -- Leave by wave/remaining rooms
+                                local remaining = modeFolder:GetAttribute("Remaining") or 999
+                                if remaining <= leaveAtWave then
+                                    spawn(function() leaveGamemode() end)
+                                end
+                            else
+                                -- Leave by timer
+                                if timer <= leaveAtTime then
+                                    spawn(function() leaveGamemode() end)
+                                end
+                            end
                         end
                     end
                 end
@@ -1398,15 +1411,17 @@ local AutoJoinToggle = Tabs.GamemodeTab:Toggle({
 -- Auto Leave Toggle
 local AutoLeaveToggle = Tabs.GamemodeTab:Toggle({
     Title = "Auto Leave",
-    Desc = "Automatically leave gamemode when timer reaches specified time",
+    Desc = "Automatically leave gamemode based on timer or wave/rooms remaining",
     Icon = "log-out",
     Value = false,
     Callback = function(state)
         autoLeaveEnabled = state
         if state then
+            local method = leaveByWave and "wave/rooms" or "timer"
+            local value = leaveByWave and leaveAtWave or leaveAtTime
             WindUI:Notify({
                 Title = "Auto Leave Enabled",
-                Content = "Will auto-leave at " .. leaveAtTime .. " seconds remaining",
+                Content = "Will auto-leave by " .. method .. " (" .. value .. ")",
                 Icon = "clock",
                 Duration = 2,
             })
@@ -1415,6 +1430,33 @@ local AutoLeaveToggle = Tabs.GamemodeTab:Toggle({
                 Title = "Auto Leave Disabled",
                 Content = "Will not auto-leave gamemodes",
                 Icon = "x",
+                Duration = 2,
+            })
+        end
+    end
+})
+
+-- Leave Method Selection
+local LeaveMethodDropdown = Tabs.GamemodeTab:Dropdown({
+    Title = "Leave Method",
+    Desc = "Choose how to determine when to leave gamemode",
+    Icon = "clock",
+    Values = {"Timer", "Wave/Rooms"},
+    Value = "Timer",
+    Callback = function(method)
+        leaveByWave = (method == "Wave/Rooms")
+        if leaveByWave then
+            WindUI:Notify({
+                Title = "Leave Method",
+                Content = "Will leave by remaining waves/rooms",
+                Icon = "layers",
+                Duration = 2,
+            })
+        else
+            WindUI:Notify({
+                Title = "Leave Method",
+                Content = "Will leave by timer",
+                Icon = "clock",
                 Duration = 2,
             })
         end
@@ -1433,6 +1475,21 @@ local LeaveTimeSlider = Tabs.GamemodeTab:Slider({
     Step = 5,
     Callback = function(value)
         leaveAtTime = tonumber(value) or 30
+    end
+})
+
+-- Leave Wave Slider
+local LeaveWaveSlider = Tabs.GamemodeTab:Slider({
+    Title = "Leave At Wave",
+    Desc = "Leave gamemode when this many waves/rooms remain",
+    Value = {
+        Min = 1,
+        Max = 50,
+        Default = 5,
+    },
+    Step = 1,
+    Callback = function(value)
+        leaveAtWave = tonumber(value) or 5
     end
 })
 
@@ -1483,7 +1540,9 @@ myConfig:Register("tweenSpeed", TweenSpeedSlider)
 myConfig:Register("selectedModes", GamemodeDropdown)
 myConfig:Register("autoJoinEnabled", AutoJoinToggle)
 myConfig:Register("autoLeaveEnabled", AutoLeaveToggle)
+myConfig:Register("leaveMethod", LeaveMethodDropdown)
 myConfig:Register("leaveAtTime", LeaveTimeSlider)
+myConfig:Register("leaveAtWave", LeaveWaveSlider)
 
 Tabs.ConfigTab:Paragraph({
     Title = "Configuration Management",
@@ -1539,7 +1598,9 @@ Tabs.ConfigTab:Button({
         GamemodeDropdown:Select({})
         AutoJoinToggle:SetValue(false)
         AutoLeaveToggle:SetValue(false)
+        LeaveMethodDropdown:Select("Timer")
         LeaveTimeSlider:SetValue(30)
+        LeaveWaveSlider:SetValue(5)
         
         autoAttackEnabled = false
         autoAttackSpeed = 0.1
@@ -1550,7 +1611,9 @@ Tabs.ConfigTab:Button({
         selectedModes = {}
         autoJoinEnabled = false
         autoLeaveEnabled = false
+        leaveByWave = false
         leaveAtTime = 30
+        leaveAtWave = 5
         currentTarget = nil
         tooFarNotified = false
         isWalkingToTarget = false
