@@ -371,33 +371,55 @@ local function startAutoAttack()
     end
     
     autoAttackConnection = RunService.Heartbeat:Connect(function()
-        if autoAttackEnabled and currentTarget then
-            if isInAttackRange(currentTarget) then
-                local args = {
-                    "General",
-                    "Attack",
-                    "Click",
-                    currentTarget.id
-                }
-                game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Signal"):FireServer(unpack(args))
-                tooFarNotified = false -- Reset notification flag when in range
-                wait(autoAttackSpeed)
-            else
-                -- Player is too far from target
-                if not tooFarNotified or lastNotifiedTarget ~= currentTarget.id then
-                    WindUI:Notify({
-                        Title = "Too Far",
-                        Content = "Move closer to attack (within 5 studs)",
-                        Icon = "move",
-                        Duration = 2,
-                    })
-                    tooFarNotified = true
-                    lastNotifiedTarget = currentTarget.id
-                end
-                
-                -- Auto move closer if not idle
-                if movementType ~= "Idle" then
-                    moveToTarget(currentTarget)
+        if autoAttackEnabled then
+            -- Only attack if we have a valid current target
+            if currentTarget then
+                -- Double-check target is still valid before attacking
+                if currentTarget.part and currentTarget.part.Parent then
+                    local died = currentTarget.part:GetAttribute("Died")
+                    local health = currentTarget.part:GetAttribute("Health") or currentTarget.part.Health
+                    
+                    if died or not health or health <= 0 then
+                        -- Target died, clear it immediately
+                        print("Target died during attack - clearing target")
+                        currentTarget = nil
+                        tooFarNotified = false
+                        return
+                    end
+                    
+                    if isInAttackRange(currentTarget) then
+                        local args = {
+                            "General",
+                            "Attack",
+                            "Click",
+                            currentTarget.id
+                        }
+                        game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Signal"):FireServer(unpack(args))
+                        tooFarNotified = false -- Reset notification flag when in range
+                        wait(autoAttackSpeed)
+                    else
+                        -- Player is too far from target
+                        if not tooFarNotified or lastNotifiedTarget ~= currentTarget.id then
+                            WindUI:Notify({
+                                Title = "Too Far",
+                                Content = "Move closer to attack (within 5 studs)",
+                                Icon = "move",
+                                Duration = 2,
+                            })
+                            tooFarNotified = true
+                            lastNotifiedTarget = currentTarget.id
+                        end
+                        
+                        -- Auto move closer if not idle
+                        if movementType ~= "Idle" then
+                            moveToTarget(currentTarget)
+                        end
+                    end
+                else
+                    -- Target part no longer exists, clear target
+                    print("Target part no longer exists - clearing target")
+                    currentTarget = nil
+                    tooFarNotified = false
                 end
             end
         end
@@ -452,18 +474,33 @@ local function startHealthMonitoring()
             -- Check if current target is still valid (immediate check)
             local currentStillValid = false
             if currentTarget then
+                -- First check if the target part still exists and has the ID
+                local targetFound = false
                 for _, enemy in pairs(enemies) do
                     if enemy.id == currentTarget.id then
-                        -- Check if enemy died
+                        targetFound = true
+                        -- Check if enemy died or has no health
                         local died = enemy.part:GetAttribute("Died")
                         local health = enemy.part:GetAttribute("Health") or enemy.part.Health
                         
                         if not died and health and health > 0 then
                             currentTarget = enemy -- Update health and position
                             currentStillValid = true
+                        else
+                            -- Enemy died or has 0 health
+                            print("Enemy died or has no health - switching target")
+                            currentTarget = nil
+                            currentStillValid = false
                         end
                         break
                     end
+                end
+                
+                -- If target not found in enemies list, it's dead/gone
+                if not targetFound then
+                    print("Target not found in enemies list - switching target")
+                    currentTarget = nil
+                    currentStillValid = false
                 end
             end
             
@@ -473,6 +510,7 @@ local function startHealthMonitoring()
                 if newTarget then
                     currentTarget = newTarget
                     tooFarNotified = false -- Reset notification for new target
+                    lastNotifiedTarget = nil -- Reset last notified target
                     
                     -- Move to new target immediately
                     if movementType ~= "Idle" then
@@ -480,11 +518,15 @@ local function startHealthMonitoring()
                     end
                     
                     WindUI:Notify({
-                        Title = "New Target",
-                        Content = "Targeting enemy with " .. currentTarget.health .. " HP",
-                        Icon = "target",
+                        Title = "Target Switched",
+                        Content = "New target: " .. currentTarget.health .. " HP",
+                        Icon = "arrow-right",
                         Duration = 1,
                     })
+                    print("Switched to new target with ID: " .. currentTarget.id)
+                else
+                    currentTarget = nil
+                    print("No valid targets found")
                 end
             end
         end
@@ -646,23 +688,47 @@ Tabs.MainTab:Button({
     Icon = "target",
     Callback = function()
         if currentTarget then
-            local args = {
-                "General",
-                "Attack",
-                "Click",
-                currentTarget.id
-            }
-            game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Signal"):FireServer(unpack(args))
-            WindUI:Notify({
-                Title = "Test Attack",
-                Content = "Attack sent to enemy with " .. currentTarget.health .. " HP!",
-                Icon = "zap",
-                Duration = 2,
-            })
+            -- Validate target before attacking
+            if currentTarget.part and currentTarget.part.Parent then
+                local died = currentTarget.part:GetAttribute("Died")
+                local health = currentTarget.part:GetAttribute("Health") or currentTarget.part.Health
+                
+                if not died and health and health > 0 then
+                    local args = {
+                        "General",
+                        "Attack",
+                        "Click",
+                        currentTarget.id
+                    }
+                    game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Signal"):FireServer(unpack(args))
+                    WindUI:Notify({
+                        Title = "Test Attack",
+                        Content = "Attack sent to enemy with " .. health .. " HP!",
+                        Icon = "zap",
+                        Duration = 2,
+                    })
+                else
+                    currentTarget = nil
+                    WindUI:Notify({
+                        Title = "Target Dead",
+                        Content = "Current target is dead, finding new target...",
+                        Icon = "skull",
+                        Duration = 2,
+                    })
+                end
+            else
+                currentTarget = nil
+                WindUI:Notify({
+                    Title = "Invalid Target",
+                    Content = "Target no longer exists, finding new target...",
+                    Icon = "x",
+                    Duration = 2,
+                })
+            end
         else
             WindUI:Notify({
                 Title = "No Target",
-                Content = "No enemy currently targeted!",
+                Content = "No enemy currently targeted! Enable Auto Attack to find targets.",
                 Icon = "alert-triangle",
                 Duration = 2,
             })
