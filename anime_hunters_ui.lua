@@ -607,6 +607,43 @@ local function disconnectTargetMonitoring()
     end
 end
 
+local function monitorTargetChanges(target)
+    disconnectTargetMonitoring()
+    
+    if not target or not target.part then return end
+    
+    -- Monitor Died attribute changes
+    local success1, err1 = pcall(function()
+        targetDeathConnection = target.part:GetAttributeChangedSignal("Died"):Connect(function()
+            local died = target.part:GetAttribute("Died")
+            if died == true then
+                -- Use spawn to prevent recursive issues
+                spawn(function()
+                    switchToNextTarget()
+                end)
+            end
+        end)
+    end)
+    
+    -- Monitor Health attribute changes
+    local success2, err2 = pcall(function()
+        targetHealthConnection = target.part:GetAttributeChangedSignal("Health"):Connect(function()
+            local health = target.part:GetAttribute("Health")
+            if not health or health <= 0 then
+                -- Use spawn to prevent recursive issues
+                spawn(function()
+                    switchToNextTarget()
+                end)
+            else
+                -- Update current target health
+                if currentTarget then
+                    currentTarget.health = health
+                end
+            end
+        end)
+    end)
+end
+
 -- New radius-based enemy detection (1000 studs)
 local function getAllEnemiesInRadius()
     local enemies = {}
@@ -913,43 +950,6 @@ local function stopModeMonitoring()
     end
 end
 
-local function monitorTargetChanges(target)
-    disconnectTargetMonitoring()
-    
-    if not target or not target.part then return end
-    
-    -- Monitor Died attribute changes
-    local success1, err1 = pcall(function()
-        targetDeathConnection = target.part:GetAttributeChangedSignal("Died"):Connect(function()
-            local died = target.part:GetAttribute("Died")
-            if died == true then
-                -- Use spawn to prevent recursive issues
-                spawn(function()
-                    switchToNextTarget()
-                end)
-            end
-        end)
-    end)
-    
-    -- Monitor Health attribute changes
-    local success2, err2 = pcall(function()
-        targetHealthConnection = target.part:GetAttributeChangedSignal("Health"):Connect(function()
-            local health = target.part:GetAttribute("Health")
-            if not health or health <= 0 then
-                -- Use spawn to prevent recursive issues
-                spawn(function()
-                    switchToNextTarget()
-                end)
-            else
-                -- Update current target health
-                if currentTarget then
-                    currentTarget.health = health
-                end
-            end
-        end)
-    end)
-end
-
 local lastHealthCheckTime = 0
 
 local function startHealthMonitoring()
@@ -994,8 +994,8 @@ local function startHealthMonitoring()
                     currentTarget.health = health
                 end
             end
-        elseif (currentPlayerMode ~= "" and currentPlayerMode ~= "World") or #selectedWorlds > 0 then
-            -- No current target but we have valid hunting areas, find one
+        else
+            -- No current target, find one (radius-based detection)
             spawn(function() switchToNextTarget() end)
         end
     end)
@@ -1250,7 +1250,6 @@ local myConfig = ConfigManager:CreateConfig("AnimeHuntersConfig")
 -- Register elements for config
 myConfig:Register("autoAttackToggle", AutoAttackToggle)
 myConfig:Register("attackSpeed", SpeedSlider)
-myConfig:Register("selectedWorlds", WorldDropdown)
 myConfig:Register("selectedEnemyNames", EnemyNameDropdown)
 myConfig:Register("targetingMode", TargetingDropdown)
 myConfig:Register("movementType", MovementDropdown)
@@ -1303,7 +1302,6 @@ Tabs.ConfigTab:Button({
         -- Reset to defaults
         AutoAttackToggle:SetValue(false)
         SpeedSlider:SetValue(0.1)
-        WorldDropdown:Select({})
         EnemyNameDropdown:Select({})
         TargetingDropdown:Select("Nearest")
         MovementDropdown:Select("Idle")
@@ -1311,7 +1309,6 @@ Tabs.ConfigTab:Button({
         
         autoAttackEnabled = false
         autoAttackSpeed = 0.1
-        selectedWorlds = {}
         selectedEnemyNames = {}
         targetingMode = "Nearest"
         movementType = "Idle"
