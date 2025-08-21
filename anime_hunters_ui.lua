@@ -154,8 +154,6 @@ local function getEnemyNamesFromModuleScript(worlds)
                     table.insert(allEnemyNames, enemyName)
                 end
             end
-        else
-            print("Could not load enemy data for world: " .. worldName)
         end
     end
     
@@ -289,7 +287,6 @@ local function findBestTarget(enemies)
             filteredEnemies = namedEnemies
         else
             -- Selected enemy names not found, fall back to any enemy (nearest)
-            print("Selected enemies not found, attacking nearest available enemy")
         end
     end
     
@@ -492,7 +489,6 @@ local function startAutoAttack()
                     end
                 else
                     -- Target part no longer exists, switch to next target
-                    print("Target part no longer exists during attack - switching to next target")
                     switchToNextTarget()
                 end
             end
@@ -543,15 +539,11 @@ local function monitorTargetChanges(target)
     
     if not target or not target.part then return end
     
-    print("Setting up monitoring for target: " .. target.name .. " (ID: " .. target.id .. ")")
-    
     -- Monitor Died attribute changes
     local success1, err1 = pcall(function()
         targetDeathConnection = target.part:GetAttributeChangedSignal("Died"):Connect(function()
             local died = target.part:GetAttribute("Died")
-            print("Died attribute changed to: " .. tostring(died))
             if died == true then
-                print("Target died - attribute changed to true, switching immediately")
                 -- Use spawn to prevent recursive issues
                 spawn(function()
                     switchToNextTarget()
@@ -560,17 +552,11 @@ local function monitorTargetChanges(target)
         end)
     end)
     
-    if not success1 then
-        print("Failed to set up Died attribute monitoring: " .. tostring(err1))
-    end
-    
     -- Monitor Health attribute changes
     local success2, err2 = pcall(function()
         targetHealthConnection = target.part:GetAttributeChangedSignal("Health"):Connect(function()
             local health = target.part:GetAttribute("Health")
-            print("Health attribute changed to: " .. tostring(health))
             if not health or health <= 0 then
-                print("Target health reached 0, switching immediately")
                 -- Use spawn to prevent recursive issues
                 spawn(function()
                     switchToNextTarget()
@@ -583,12 +569,6 @@ local function monitorTargetChanges(target)
             end
         end)
     end)
-    
-    if not success2 then
-        print("Failed to set up Health attribute monitoring: " .. tostring(err2))
-    end
-    
-    print("Monitoring setup complete for target")
 end
 
 local function switchToNextTarget()
@@ -615,11 +595,9 @@ local function switchToNextTarget()
             Icon = "arrow-right",
             Duration = 1,
         })
-        print("Switched to new target with ID: " .. currentTarget.id)
         return true
     else
         currentTarget = nil
-        print("No valid targets found")
         return false
     end
 end
@@ -643,7 +621,6 @@ local function startHealthMonitoring()
             if currentTarget then
                 if not currentTarget.part or not currentTarget.part.Parent then
                     -- Target part no longer exists - immediately switch
-                    print("Backup check: Target part no longer exists - switching to next target")
                     switchToNextTarget()
                 else
                     -- Backup death check in case attribute signals fail
@@ -651,10 +628,8 @@ local function startHealthMonitoring()
                     local health = currentTarget.part:GetAttribute("Health") or currentTarget.part.Health
                     
                     if died == true then
-                        print("Backup check: Target died (Died=true) - switching to next target")
                         switchToNextTarget()
                     elseif not health or health <= 0 then
-                        print("Backup check: Target health <= 0 - switching to next target")
                         switchToNextTarget()
                     else
                         -- Update current target's position and health
@@ -720,7 +695,7 @@ local WorldDropdown = Tabs.MainTab:Dropdown({
                 Duration = 2,
             })
         end
-        print("Selected Worlds: " .. game:GetService("HttpService"):JSONEncode(selectedWorlds))
+
     end
 })
 
@@ -752,7 +727,44 @@ local EnemyNameDropdown = Tabs.MainTab:Dropdown({
                 Duration = 2,
             })
         end
-        print("Selected Enemy Names: " .. game:GetService("HttpService"):JSONEncode(selectedEnemyNames))
+
+    end
+})
+
+Tabs.MainTab:Button({
+    Title = "Refresh Enemy Names",
+    Desc = "Update the list of available enemy names from selected worlds",
+    Icon = "refresh-cw",
+    Callback = function()
+        if #selectedWorlds > 0 then
+            local success, enemyNames = pcall(function()
+                return getEnemyNamesFromModuleScript(selectedWorlds)
+            end)
+            
+            if success and enemyNames then
+                EnemyNameDropdown:Refresh(enemyNames)
+                WindUI:Notify({
+                    Title = "Enemy Names Refreshed",
+                    Content = "Found " .. #enemyNames .. " different enemy types",
+                    Icon = "users",
+                    Duration = 2,
+                })
+            else
+                WindUI:Notify({
+                    Title = "Refresh Failed",
+                    Content = "Error loading enemy names from module scripts",
+                    Icon = "alert-triangle",
+                    Duration = 3,
+                })
+            end
+        else
+            WindUI:Notify({
+                Title = "No Worlds Selected",
+                Content = "Please select worlds first!",
+                Icon = "alert-triangle",
+                Duration = 2,
+            })
+        end
     end
 })
 
@@ -772,7 +784,7 @@ local TargetingDropdown = Tabs.MainTab:Dropdown({
             Icon = "crosshair",
             Duration = 2,
         })
-        print("Targeting Mode: " .. mode)
+
     end
 })
 
@@ -791,7 +803,7 @@ local MovementDropdown = Tabs.MainTab:Dropdown({
             Icon = "navigation",
             Duration = 2,
         })
-        print("Movement Type: " .. movement)
+
     end
 })
 
@@ -807,7 +819,7 @@ local TweenSpeedSlider = Tabs.MainTab:Slider({
     Step = 0.1,
     Callback = function(value)
         tweenSpeed = value
-        print("Tween Speed set to: " .. value .. " seconds")
+
     end
 })
 
@@ -849,7 +861,7 @@ local AutoAttackToggle = Tabs.MainTab:Toggle({
                 Duration = 3,
             })
         end
-        print("Auto Attack: " .. tostring(state))
+
     end
 })
 
@@ -864,219 +876,13 @@ local SpeedSlider = Tabs.MainTab:Slider({
     Step = 0.01,
     Callback = function(value)
         autoAttackSpeed = value
-        print("Attack Speed set to: " .. value .. " seconds")
+
     end
 })
 
 Tabs.MainTab:Divider()
 
-Tabs.MainTab:Button({
-    Title = "Auto-Select Current World",
-    Desc = "Automatically detect and select the world you're currently in",
-    Icon = "map-pin",
-    Callback = function()
-        local detectedWorld = detectCurrentWorld()
-        if detectedWorld ~= "" then
-            -- Add to selected worlds if not already selected
-            local alreadySelected = false
-            for _, world in pairs(selectedWorlds) do
-                if world == detectedWorld then
-                    alreadySelected = true
-                    break
-                end
-            end
-            
-            if not alreadySelected then
-                table.insert(selectedWorlds, detectedWorld)
-                WorldDropdown:Select(selectedWorlds)
-                
-                -- Update enemy names
-                local success, enemyNames = pcall(function()
-                    return getEnemyNamesFromModuleScript(selectedWorlds)
-                end)
-                
-                if success and enemyNames then
-                    EnemyNameDropdown:Refresh(enemyNames)
-                end
-            end
-            
-            WindUI:Notify({
-                Title = "World Auto-Selected",
-                Content = "Added " .. detectedWorld .. " to selected worlds",
-                Icon = "check",
-                Duration = 3,
-            })
-        else
-            WindUI:Notify({
-                Title = "No World Detected",
-                Content = "Move closer to enemies (within 100 studs) to detect world",
-                Icon = "search-x",
-                Duration = 3,
-            })
-        end
-    end
-})
 
-Tabs.MainTab:Button({
-    Title = "Refresh Worlds",
-    Desc = "Update the list of available worlds",
-    Icon = "refresh-cw",
-    Callback = function()
-        local worlds = getAllWorlds()
-        WorldDropdown:Refresh(worlds)
-        WindUI:Notify({
-            Title = "Worlds Refreshed",
-            Content = "Found " .. #worlds .. " worlds",
-            Icon = "refresh-cw",
-            Duration = 2,
-        })
-    end
-})
-
-Tabs.MainTab:Button({
-    Title = "Refresh Enemy Names",
-    Desc = "Update the list of available enemy names from selected worlds",
-    Icon = "users",
-    Callback = function()
-        if #selectedWorlds > 0 then
-            local success, enemyNames = pcall(function()
-                return getEnemyNamesFromModuleScript(selectedWorlds)
-            end)
-            
-            if success and enemyNames then
-                EnemyNameDropdown:Refresh(enemyNames)
-                WindUI:Notify({
-                    Title = "Enemy Names Refreshed",
-                    Content = "Found " .. #enemyNames .. " different enemy types",
-                    Icon = "users",
-                    Duration = 2,
-                })
-                print("Successfully refreshed enemy names: " .. table.concat(enemyNames, ", "))
-            else
-                WindUI:Notify({
-                    Title = "Refresh Failed",
-                    Content = "Error loading enemy names from module scripts",
-                    Icon = "alert-triangle",
-                    Duration = 3,
-                })
-                print("Error refreshing enemy names")
-            end
-        else
-            WindUI:Notify({
-                Title = "No Worlds Selected",
-                Content = "Please select worlds first!",
-                Icon = "alert-triangle",
-                Duration = 2,
-            })
-        end
-    end
-})
-
-Tabs.MainTab:Button({
-    Title = "Debug: Current Target Status",
-    Desc = "Show current target's status and attributes",
-    Icon = "crosshair",
-    Callback = function()
-        if currentTarget then
-            print("=== Current Target Debug ===")
-            print("Name: " .. currentTarget.name)
-            print("ID: " .. currentTarget.id)
-            print("Health: " .. currentTarget.health)
-            print("Position: " .. tostring(currentTarget.position))
-            
-            if currentTarget.part and currentTarget.part.Parent then
-                local died = currentTarget.part:GetAttribute("Died")
-                local health = currentTarget.part:GetAttribute("Health")
-                print("Part exists: true")
-                print("Died attribute: " .. tostring(died))
-                print("Health attribute: " .. tostring(health))
-                print("Part Health property: " .. tostring(currentTarget.part.Health))
-                
-                WindUI:Notify({
-                    Title = "Current Target",
-                    Content = currentTarget.name .. " - Died: " .. tostring(died) .. " HP: " .. tostring(health),
-                    Icon = "target",
-                    Duration = 3,
-                })
-            else
-                print("Part exists: false")
-                WindUI:Notify({
-                    Title = "Current Target",
-                    Content = "Target part no longer exists!",
-                    Icon = "x",
-                    Duration = 2,
-                })
-            end
-        else
-            print("No current target")
-            WindUI:Notify({
-                Title = "No Target",
-                Content = "No current target selected",
-                Icon = "alert-triangle",
-                Duration = 2,
-            })
-        end
-    end
-})
-
-Tabs.MainTab:Button({
-    Title = "Debug: Show Enemy Info",
-    Desc = "Show information about enemies in selected worlds",
-    Icon = "bug",
-    Callback = function()
-        if #selectedWorlds > 0 then
-            for _, worldName in pairs(selectedWorlds) do
-                local enemies = getEnemiesInWorld(worldName)
-                print("=== World: " .. worldName .. " ===")
-                print("Found " .. #enemies .. " enemies")
-                
-                for i, enemy in pairs(enemies) do
-                    print("Enemy " .. i .. ": " .. enemy.name .. " (ID: " .. enemy.id .. ", HP: " .. enemy.health .. ")")
-                end
-                
-                if #enemies == 0 then
-                    print("No enemies found in " .. worldName)
-                    -- Check if the world folder exists
-                    local worldFolder = workspace:FindFirstChild("Server")
-                    if worldFolder then
-                        worldFolder = worldFolder:FindFirstChild("Enemies")
-                        if worldFolder then
-                            worldFolder = worldFolder:FindFirstChild("World")
-                            if worldFolder then
-                                worldFolder = worldFolder:FindFirstChild(worldName)
-                                if worldFolder then
-                                    print("World folder exists with " .. #worldFolder:GetChildren() .. " children")
-                                else
-                                    print("World folder '" .. worldName .. "' not found")
-                                end
-                            else
-                                print("World parent folder not found")
-                            end
-                        else
-                            print("Enemies folder not found")
-                        end
-                    else
-                        print("Server folder not found in workspace")
-                    end
-                end
-            end
-            
-            WindUI:Notify({
-                Title = "Debug Info",
-                Content = "Enemy information printed to console",
-                Icon = "terminal",
-                Duration = 2,
-            })
-        else
-            WindUI:Notify({
-                Title = "No Worlds Selected",
-                Content = "Please select worlds first!",
-                Icon = "alert-triangle",
-                Duration = 2,
-            })
-        end
-    end
-})
 
 Tabs.MainTab:Button({
     Title = "Test Attack",
