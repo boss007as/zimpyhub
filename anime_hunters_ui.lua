@@ -306,24 +306,43 @@ local function getAvailableGamemodes()
     return modes
 end
 
--- Get hatch worlds from workspace.Client.Enemies.World
+-- Get hatch worlds from ReplicatedStorage.Shared.Stars
 local function getHatchWorlds()
     local worlds = {}
-    local clientFolder = workspace:FindFirstChild("Client")
-    if clientFolder then
-        local enemiesFolder = clientFolder:FindFirstChild("Enemies")
-        if enemiesFolder then
-            local worldFolder = enemiesFolder:FindFirstChild("World")
-            if worldFolder then
-                for _, world in pairs(worldFolder:GetChildren()) do
-                    if world:IsA("Folder") then
-                        table.insert(worlds, world.Name)
-                    end
+    local starsModule = game:GetService("ReplicatedStorage"):FindFirstChild("Shared")
+    if starsModule then
+        starsModule = starsModule:FindFirstChild("Stars")
+        if starsModule then
+            local success, starsData = pcall(function()
+                return require(starsModule)
+            end)
+            
+            if success and starsData then
+                for worldName, _ in pairs(starsData) do
+                    table.insert(worlds, worldName)
                 end
             end
         end
     end
     return worlds
+end
+
+-- Get hatch price for a world
+local function getHatchPrice(worldName)
+    local starsModule = game:GetService("ReplicatedStorage"):FindFirstChild("Shared")
+    if starsModule then
+        starsModule = starsModule:FindFirstChild("Stars")
+        if starsModule then
+            local success, starsData = pcall(function()
+                return require(starsModule)
+            end)
+            
+            if success and starsData and starsData[worldName] then
+                return starsData[worldName].Price or 0
+            end
+        end
+    end
+    return 0
 end
 
 -- Currency conversion function
@@ -380,10 +399,21 @@ local function startAutoHatch()
             return -- Not enough time passed
         end
         
-        -- Check if player has enough currency (basic check)
+        -- Check if player has enough currency for this world
         local playerStars = getPlayerStars()
-        if playerStars <= 0 then
-            return -- No currency to hatch
+        local hatchPrice = getHatchPrice(hatchWorld)
+        
+        if playerStars < hatchPrice then
+            -- Not enough currency, stop auto hatch
+            autoHatchEnabled = false
+            AutoHatchToggle:SetValue(false)
+            WindUI:Notify({
+                Title = "Insufficient Currency",
+                Content = "Not enough Stars for " .. hatchWorld .. ". Auto Hatch stopped.",
+                Icon = "alert-triangle",
+                Duration = 3,
+            })
+            return
         end
         
         -- Protected hatch call
@@ -1524,12 +1554,42 @@ local HatchWorldDropdown = Tabs.HatchTab:Dropdown({
     Callback = function(world)
         hatchWorld = world or ""
         if hatchWorld ~= "" then
+            local price = getHatchPrice(hatchWorld)
+            local playerStars = getPlayerStars()
+            
+            -- Format price for display
+            local displayPrice = ""
+            if price >= 1000000000000000000 then
+                displayPrice = string.format("%.1fQn", price / 1000000000000000000)
+            elseif price >= 1000000000000000 then
+                displayPrice = string.format("%.1fQd", price / 1000000000000000)
+            elseif price >= 1000000000000 then
+                displayPrice = string.format("%.1fT", price / 1000000000000)
+            elseif price >= 1000000000 then
+                displayPrice = string.format("%.1fB", price / 1000000000)
+            elseif price >= 1000000 then
+                displayPrice = string.format("%.1fM", price / 1000000)
+            elseif price >= 1000 then
+                displayPrice = string.format("%.1fK", price / 1000)
+            else
+                displayPrice = tostring(price)
+            end
+            
             WindUI:Notify({
                 Title = "Hatch World Selected",
-                Content = "Will hatch from: " .. hatchWorld,
+                Content = hatchWorld .. " - Price: " .. displayPrice .. " Stars",
                 Icon = "map-pin",
-                Duration = 2,
+                Duration = 3,
             })
+            
+            if playerStars < price then
+                WindUI:Notify({
+                    Title = "Insufficient Currency",
+                    Content = "You need " .. displayPrice .. " Stars to hatch from " .. hatchWorld,
+                    Icon = "alert-triangle",
+                    Duration = 4,
+                })
+            end
         else
             WindUI:Notify({
                 Title = "No Hatch World",
