@@ -28,6 +28,7 @@ local leaveAtTime = 30
 local currentPlayerMode = ""
 local modeMonitorConnection = nil
 local playerModeConnection = nil
+local savedLocation = nil
 
 -- Services
 local Players = game:GetService("Players")
@@ -204,14 +205,152 @@ end
 local function getAllEnemiesInSelectedWorlds()
     local allEnemies = {}
     
-    for _, worldName in pairs(selectedWorlds) do
-        local worldEnemies = getEnemiesInWorld(worldName)
-        for _, enemy in pairs(worldEnemies) do
+    -- If player is in a gamemode, get enemies from gamemode path
+    if currentPlayerMode ~= "" and currentPlayerMode ~= "World" then
+        local gamemodeEnemies = getEnemiesInGamemode(currentPlayerMode)
+        for _, enemy in pairs(gamemodeEnemies) do
             table.insert(allEnemies, enemy)
+        end
+    else
+        -- Get enemies from selected worlds
+        for _, worldName in pairs(selectedWorlds) do
+            local worldEnemies = getEnemiesInWorld(worldName)
+            for _, enemy in pairs(worldEnemies) do
+                table.insert(allEnemies, enemy)
+            end
         end
     end
     
     return allEnemies
+end
+
+-- Get enemies from gamemode path
+local function getEnemiesInGamemode(modeName)
+    local enemies = {}
+    local gamemodeFolder = workspace:FindFirstChild("Server")
+    if gamemodeFolder then
+        gamemodeFolder = gamemodeFolder:FindFirstChild("Enemies")
+        if gamemodeFolder then
+            gamemodeFolder = gamemodeFolder:FindFirstChild("Gamemodes")
+            if gamemodeFolder then
+                gamemodeFolder = gamemodeFolder:FindFirstChild(modeName)
+                if gamemodeFolder then
+                    for _, part in pairs(gamemodeFolder:GetChildren()) do
+                        if part:IsA("BasePart") and part:GetAttribute("ID") then
+                            local died = part:GetAttribute("Died")
+                            local health = part:GetAttribute("Health") or part.Health
+                            if not died and health and health > 0 then
+                                table.insert(enemies, {
+                                    part = part,
+                                    id = part:GetAttribute("ID"),
+                                    health = health,
+                                    position = part.Position,
+                                    name = part.Name
+                                })
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return enemies
+end
+
+-- Get available gamemodes
+local function getAvailableGamemodes()
+    local modes = {}
+    local gamemodesFolder = game:GetService("ReplicatedStorage"):FindFirstChild("Gamemodes")
+    if gamemodesFolder then
+        for _, mode in pairs(gamemodesFolder:GetChildren()) do
+            if mode:IsA("Folder") then
+                table.insert(modes, mode.Name)
+            end
+        end
+    end
+    return modes
+end
+
+-- Save current location
+local function saveCurrentLocation()
+    if rootPart then
+        savedLocation = rootPart.CFrame
+        WindUI:Notify({
+            Title = "Location Saved",
+            Content = "Current position saved for auto-return",
+            Icon = "map-pin",
+            Duration = 2,
+        })
+    end
+end
+
+-- Teleport back to saved location
+local function teleportToSavedLocation()
+    if savedLocation and rootPart then
+        rootPart.CFrame = savedLocation
+        WindUI:Notify({
+            Title = "Returned to Saved Location",
+            Content = "Teleported back to saved position",
+            Icon = "home",
+            Duration = 2,
+        })
+    end
+end
+
+-- Join selected gamemode
+local function joinGamemode(modeName)
+    local success, err = pcall(function()
+        local args = {
+            "Gamemodes",
+            modeName,
+            "Join"
+        }
+        game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Signal"):FireServer(unpack(args))
+    end)
+    
+    if success then
+        WindUI:Notify({
+            Title = "Joining Mode",
+            Content = "Attempting to join " .. modeName,
+            Icon = "log-in",
+            Duration = 2,
+        })
+    else
+        WindUI:Notify({
+            Title = "Join Failed",
+            Content = "Failed to join " .. modeName,
+            Icon = "alert-triangle",
+            Duration = 3,
+        })
+    end
+end
+
+-- Leave current gamemode
+local function leaveGamemode()
+    if currentPlayerMode ~= "" and currentPlayerMode ~= "World" then
+        local success, err = pcall(function()
+            local args = {
+                "Gamemodes",
+                currentPlayerMode,
+                "Leave"
+            }
+            game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Signal"):FireServer(unpack(args))
+        end)
+        
+        if success then
+            WindUI:Notify({
+                Title = "Leaving Mode",
+                Content = "Left " .. currentPlayerMode,
+                Icon = "log-out",
+                Duration = 2,
+            })
+            
+            -- Teleport back to saved location
+            if autoLeaveEnabled then
+                teleportToSavedLocation()
+            end
+        end
+    end
 end
 
 -- Better world detection based on player's current location
@@ -532,13 +671,91 @@ local function stopAutoAttack()
     tooFarNotified = false
 end
 
+-- Monitor gamemode status and player mode
+local function startModeMonitoring()
+    if modeMonitorConnection then
+        modeMonitorConnection:Disconnect()
+    end
+    
+    if playerModeConnection then
+        playerModeConnection:Disconnect()
+    end
+    
+    -- Monitor player's current mode
+    playerModeConnection = RunService.Heartbeat:Connect(function()
+        wait(1) -- Check every second to avoid lag
+        
+        local newPlayerMode = player:GetAttribute("Mode") or "World"
+        if newPlayerMode ~= currentPlayerMode then
+            currentPlayerMode = newPlayerMode
+            
+            -- Reset current target when mode changes
+            currentTarget = nil
+            disconnectTargetMonitoring()
+            
+            if currentPlayerMode ~= "World" then
+                WindUI:Notify({
+                    Title = "Mode Changed",
+                    Content = "Now in: " .. currentPlayerMode,
+                    Icon = "gamepad-2",
+                    Duration = 2,
+                })
+            end
+        end
+    end)
+    
+    -- Monitor selected gamemode for auto-join
+    if autoJoinEnabled and selectedMode ~= "" then
+        modeMonitorConnection = RunService.Heartbeat:Connect(function()
+            wait(2) -- Check every 2 seconds to avoid spam
+            
+            local gamemodeFolder = game:GetService("ReplicatedStorage"):FindFirstChild("Gamemodes")
+            if gamemodeFolder then
+                local modeFolder = gamemodeFolder:FindFirstChild(selectedMode)
+                if modeFolder then
+                    local isOpen = modeFolder:GetAttribute("Open")
+                    local timer = modeFolder:GetAttribute("Timer") or 0
+                    
+                    -- Auto join if mode is open and player not already in it
+                    if isOpen and currentPlayerMode ~= selectedMode then
+                        joinGamemode(selectedMode)
+                    end
+                    
+                    -- Auto leave if timer is low and auto leave is enabled
+                    if autoLeaveEnabled and currentPlayerMode == selectedMode and timer <= leaveAtTime then
+                        leaveGamemode()
+                    end
+                end
+            end
+        end)
+    end
+end
+
+local function stopModeMonitoring()
+    if modeMonitorConnection then
+        modeMonitorConnection:Disconnect()
+        modeMonitorConnection = nil
+    end
+    if playerModeConnection then
+        playerModeConnection:Disconnect()
+        playerModeConnection = nil
+    end
+end
+
 local function findNextTarget()
-    if #selectedWorlds == 0 then return nil end
-    
-    local enemies = getAllEnemiesInSelectedWorlds()
-    if #enemies == 0 then return nil end
-    
-    return findBestTarget(enemies)
+    -- Check if player is in gamemode or world
+    if currentPlayerMode ~= "" and currentPlayerMode ~= "World" then
+        -- In gamemode - get enemies from gamemode path
+        local enemies = getEnemiesInGamemode(currentPlayerMode)
+        if #enemies == 0 then return nil end
+        return findBestTarget(enemies)
+    else
+        -- In world - get enemies from selected worlds
+        if #selectedWorlds == 0 then return nil end
+        local enemies = getAllEnemiesInSelectedWorlds()
+        if #enemies == 0 then return nil end
+        return findBestTarget(enemies)
+    end
 end
 
 local function disconnectTargetMonitoring()
