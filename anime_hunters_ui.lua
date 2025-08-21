@@ -9,6 +9,7 @@ local autoAttackConnection = nil
 -- Variables for Enemy Targeting
 local detectedWorld = ""
 local targetingMode = "Nearest"
+local selectedEnemyName = ""
 local movementType = "Idle"
 local tweenSpeed = 1
 local currentTarget = nil
@@ -179,7 +180,8 @@ local function getEnemiesInWorld(worldName)
                                     part = part,
                                     id = part:GetAttribute("ID"),
                                     health = health,
-                                    position = part.Position
+                                    position = part.Position,
+                                    name = part.Name -- Add enemy name
                                 })
                             end
                         end
@@ -189,6 +191,41 @@ local function getEnemiesInWorld(worldName)
         end
     end
     return enemies
+end
+
+local function getAvailableEnemyNames(worldName)
+    local enemyNames = {}
+    local nameSet = {}
+    
+    if worldName == "" then return enemyNames end
+    
+    local worldFolder = workspace:FindFirstChild("Client")
+    if worldFolder then
+        worldFolder = worldFolder:FindFirstChild("Enemies")
+        if worldFolder then
+            worldFolder = worldFolder:FindFirstChild("World")
+            if worldFolder then
+                worldFolder = worldFolder:FindFirstChild(worldName)
+                if worldFolder then
+                    for _, part in pairs(worldFolder:GetChildren()) do
+                        if part:IsA("BasePart") and part:GetAttribute("ID") then
+                            local died = part:GetAttribute("Died")
+                            local health = part:GetAttribute("Health") or part.Health
+                            if not died and health and health > 0 then
+                                local name = part.Name
+                                if not nameSet[name] then
+                                    nameSet[name] = true
+                                    table.insert(enemyNames, name)
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    return enemyNames
 end
 
 local function isInAttackRange(target)
@@ -202,11 +239,31 @@ local function findBestTarget(enemies)
     
     local playerPos = rootPart.Position
     
+    -- First, try to find enemies with the selected name (if any)
+    local filteredEnemies = enemies
+    if selectedEnemyName ~= "" then
+        local namedEnemies = {}
+        for _, enemy in pairs(enemies) do
+            if enemy.name == selectedEnemyName then
+                table.insert(namedEnemies, enemy)
+            end
+        end
+        
+        -- If we found enemies with the selected name, use them
+        if #namedEnemies > 0 then
+            filteredEnemies = namedEnemies
+        else
+            -- Selected enemy name not found, fall back to any enemy (nearest)
+            print("Selected enemy '" .. selectedEnemyName .. "' not found, attacking nearest enemy")
+        end
+    end
+    
+    -- Apply targeting mode to filtered enemies
     if targetingMode == "Nearest" then
-        local nearest = enemies[1]
+        local nearest = filteredEnemies[1]
         local nearestDist = (playerPos - nearest.position).Magnitude
         
-        for _, enemy in pairs(enemies) do
+        for _, enemy in pairs(filteredEnemies) do
             local dist = (playerPos - enemy.position).Magnitude
             if dist < nearestDist then
                 nearest = enemy
@@ -216,19 +273,29 @@ local function findBestTarget(enemies)
         return nearest
         
     elseif targetingMode == "Lowest Health" then
-        local lowest = enemies[1]
+        local lowest = filteredEnemies[1]
         
-        for _, enemy in pairs(enemies) do
+        for _, enemy in pairs(filteredEnemies) do
             if enemy.health < lowest.health then
                 lowest = enemy
             end
         end
         return lowest
         
+    elseif targetingMode == "Highest Health" then
+        local highest = filteredEnemies[1]
+        
+        for _, enemy in pairs(filteredEnemies) do
+            if enemy.health > highest.health then
+                highest = enemy
+            end
+        end
+        return highest
+        
     elseif targetingMode == "Nearest + Lowest Health" then
         -- Find enemies with lowest health first
         local lowestHealth = math.huge
-        for _, enemy in pairs(enemies) do
+        for _, enemy in pairs(filteredEnemies) do
             if enemy.health < lowestHealth then
                 lowestHealth = enemy.health
             end
@@ -236,7 +303,7 @@ local function findBestTarget(enemies)
         
         -- Get all enemies with the lowest health
         local lowestHealthEnemies = {}
-        for _, enemy in pairs(enemies) do
+        for _, enemy in pairs(filteredEnemies) do
             if enemy.health == lowestHealth then
                 table.insert(lowestHealthEnemies, enemy)
             end
@@ -254,9 +321,39 @@ local function findBestTarget(enemies)
             end
         end
         return nearest
+        
+    elseif targetingMode == "Nearest + Highest Health" then
+        -- Find enemies with highest health first
+        local highestHealth = 0
+        for _, enemy in pairs(filteredEnemies) do
+            if enemy.health > highestHealth then
+                highestHealth = enemy.health
+            end
+        end
+        
+        -- Get all enemies with the highest health
+        local highestHealthEnemies = {}
+        for _, enemy in pairs(filteredEnemies) do
+            if enemy.health == highestHealth then
+                table.insert(highestHealthEnemies, enemy)
+            end
+        end
+        
+        -- Find nearest among highest health enemies
+        local nearest = highestHealthEnemies[1]
+        local nearestDist = (playerPos - nearest.position).Magnitude
+        
+        for _, enemy in pairs(highestHealthEnemies) do
+            local dist = (playerPos - enemy.position).Magnitude
+            if dist < nearestDist then
+                nearest = enemy
+                nearestDist = dist
+            end
+        end
+        return nearest
     end
     
-    return enemies[1]
+    return filteredEnemies[1]
 end
 
 local function moveToTarget(target)
@@ -348,6 +445,9 @@ local function startWorldDetection()
                         Duration = 3,
                     })
                     isInSleepMode = false
+                    -- Update enemy names dropdown
+                    local enemyNames = getAvailableEnemyNames(detectedWorld)
+                    EnemyNameDropdown:Refresh(enemyNames)
                     -- Immediately find first target
                     switchToNextTarget()
                 else
@@ -544,12 +644,42 @@ local WorldStatus = Tabs.MainTab:Paragraph({
     Color = "Grey",
 })
 
+-- Enemy Name Selection
+local EnemyNameDropdown = Tabs.MainTab:Dropdown({
+    Title = "Target Enemy Name",
+    Desc = "Choose specific enemy name to target (leave empty for any enemy)",
+    Icon = "user-x",
+    Values = {},
+    Value = "",
+    AllowNone = true,
+    Callback = function(enemyName)
+        selectedEnemyName = enemyName or ""
+        currentTarget = nil -- Reset target to apply new selection
+        if selectedEnemyName ~= "" then
+            WindUI:Notify({
+                Title = "Enemy Selected",
+                Content = "Will target: " .. selectedEnemyName,
+                Icon = "crosshair",
+                Duration = 2,
+            })
+        else
+            WindUI:Notify({
+                Title = "Enemy Selection",
+                Content = "Will target any enemy",
+                Icon = "users",
+                Duration = 2,
+            })
+        end
+        print("Selected Enemy Name: " .. selectedEnemyName)
+    end
+})
+
 -- Targeting Mode
 local TargetingDropdown = Tabs.MainTab:Dropdown({
     Title = "Targeting Mode",
     Desc = "Choose how to select enemies",
     Icon = "target",
-    Values = {"Nearest", "Lowest Health", "Nearest + Lowest Health"},
+    Values = {"Nearest", "Lowest Health", "Highest Health", "Nearest + Lowest Health", "Nearest + Highest Health"},
     Value = "Nearest",
     Callback = function(mode)
         targetingMode = mode
@@ -660,6 +790,9 @@ Tabs.MainTab:Button({
             detectedWorld = world
             WorldStatus:SetTitle("Current World: " .. world)
             WorldStatus:SetDesc("World detected successfully! Enemies within 100 studs range.")
+            -- Update enemy names dropdown
+            local enemyNames = getAvailableEnemyNames(detectedWorld)
+            EnemyNameDropdown:Refresh(enemyNames)
             WindUI:Notify({
                 Title = "World Detected",
                 Content = "Found world: " .. world,
@@ -671,6 +804,31 @@ Tabs.MainTab:Button({
                 Title = "No World Detected",
                 Content = "No enemies found within 100 studs",
                 Icon = "search-x",
+                Duration = 2,
+            })
+        end
+    end
+})
+
+Tabs.MainTab:Button({
+    Title = "Refresh Enemy Names",
+    Desc = "Update the list of available enemy names",
+    Icon = "refresh-cw",
+    Callback = function()
+        if detectedWorld ~= "" then
+            local enemyNames = getAvailableEnemyNames(detectedWorld)
+            EnemyNameDropdown:Refresh(enemyNames)
+            WindUI:Notify({
+                Title = "Enemy Names Refreshed",
+                Content = "Found " .. #enemyNames .. " different enemy types",
+                Icon = "users",
+                Duration = 2,
+            })
+        else
+            WindUI:Notify({
+                Title = "No World Detected",
+                Content = "Please detect a world first!",
+                Icon = "alert-triangle",
                 Duration = 2,
             })
         end
@@ -741,6 +899,7 @@ local myConfig = ConfigManager:CreateConfig("AnimeHuntersConfig")
 -- Register elements for config
 myConfig:Register("autoAttackToggle", AutoAttackToggle)
 myConfig:Register("attackSpeed", SpeedSlider)
+myConfig:Register("selectedEnemyName", EnemyNameDropdown)
 myConfig:Register("targetingMode", TargetingDropdown)
 myConfig:Register("movementType", MovementDropdown)
 myConfig:Register("tweenSpeed", TweenSpeedSlider)
@@ -792,12 +951,14 @@ Tabs.ConfigTab:Button({
         -- Reset to defaults
         AutoAttackToggle:SetValue(false)
         SpeedSlider:SetValue(0.1)
+        EnemyNameDropdown:Select("")
         TargetingDropdown:Select("Nearest")
         MovementDropdown:Select("Idle")
         TweenSpeedSlider:SetValue(1.0)
         
         autoAttackEnabled = false
         autoAttackSpeed = 0.1
+        selectedEnemyName = ""
         detectedWorld = ""
         targetingMode = "Nearest"
         movementType = "Idle"
