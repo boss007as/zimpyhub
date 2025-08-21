@@ -424,18 +424,7 @@ elliott_bearish = elliott_sell_wave_2 or elliott_sell_wave_4 or (current_wave ==
 // REVERSAL DETECTION SYSTEM
 // ============================================================================
 
-// 1. DIVERGENCE DETECTION
-// Price making higher highs but indicators making lower highs (bearish divergence)
-price_higher_high = high > ta.highest(high, 20)[1]
-rsi_lower_high = rsi < ta.highest(rsi, 20)[1] and rsi > 50
-macd_lower_high = macd_line < ta.highest(macd_line, 20)[1] and macd_line > 0
-bearish_divergence = price_higher_high and (rsi_lower_high or macd_lower_high)
-
-// Price making lower lows but indicators making higher lows (bullish divergence)
-price_lower_low = low < ta.lowest(low, 20)[1]
-rsi_higher_low = rsi > ta.lowest(rsi, 20)[1] and rsi < 50
-macd_higher_low = macd_line > ta.lowest(macd_line, 20)[1] and macd_line < 0
-bullish_divergence = price_lower_low and (rsi_higher_low or macd_higher_low)
+// Divergence detection already handled above in LuxAlgo section
 
 // 2. ELLIOTT WAVE REVERSAL SIGNALS
 // Wave 5 exhaustion - multiple warning signs
