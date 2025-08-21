@@ -66,6 +66,13 @@ position_size = input.float(5.0, title="Position Size % of Equity", tooltip="Day
 // Day Trading Signal Settings
 min_volume_multiplier = input.float(1.5, title="Minimum Volume Multiplier", tooltip="Day Trading: 1.5-2.0. Ensures adequate liquidity", group="Day Trading", minval=1.0, maxval=3.0)
 
+// LuxAlgo-Style Advanced Features
+show_market_structure = input.bool(true, title="Show Market Structure (BOS/CHoCH)", tooltip="Break of Structure and Change of Character analysis", group="LuxAlgo Features")
+show_order_blocks = input.bool(true, title="Show Order Blocks", tooltip="Institutional order block zones", group="LuxAlgo Features")
+show_liquidity_zones = input.bool(true, title="Show Liquidity Zones", tooltip="Areas where liquidity is likely to be grabbed", group="LuxAlgo Features")
+show_premium_discount = input.bool(true, title="Show Premium/Discount Zones", tooltip="Fair value gaps and imbalance zones", group="LuxAlgo Features")
+smart_money_filter = input.bool(true, title="Smart Money Filter", tooltip="Filter signals based on institutional flow", group="LuxAlgo Features")
+
 // ============================================================================
 // INDICATOR CALCULATIONS
 // ============================================================================
@@ -201,6 +208,91 @@ time_filter_ok = in_trading_hours and not_lunch_time
 
 // Volume filter for day trading
 volume_ok = volume > volume_sma_20 * min_volume_multiplier
+
+// ============================================================================
+// LUXALGO-STYLE MARKET STRUCTURE ANALYSIS
+// ============================================================================
+
+// Market Structure - Break of Structure (BOS) and Change of Character (CHoCH)
+swing_high = ta.pivothigh(high, 5, 5)
+swing_low = ta.pivotlow(low, 5, 5)
+
+// Track market structure
+var float last_higher_high = na
+var float last_lower_low = na
+var bool uptrend = true
+
+// Update market structure
+if not na(swing_high)
+    if na(last_higher_high) or swing_high > last_higher_high
+        last_higher_high := swing_high
+        uptrend := true
+    else if swing_high < last_higher_high
+        uptrend := false  // Failed to make higher high
+
+if not na(swing_low)
+    if na(last_lower_low) or swing_low < last_lower_low
+        last_lower_low := swing_low
+        uptrend := false
+    else if swing_low > last_lower_low
+        uptrend := true  // Failed to make lower low
+
+// Break of Structure (BOS) Detection
+bos_bullish = not na(swing_high) and swing_high > last_higher_high and not uptrend[1]
+bos_bearish = not na(swing_low) and swing_low < last_lower_low and uptrend[1]
+
+// Change of Character (CHoCH) Detection  
+choch_bullish = not na(swing_low) and swing_low > last_lower_low and not uptrend[1]
+choch_bearish = not na(swing_high) and swing_high < last_higher_high and uptrend[1]
+
+// Order Blocks Detection (LuxAlgo Style)
+// Bullish Order Block - Last bearish candle before strong bullish move
+bullish_ob_condition = close[1] < open[1] and close > close[1] * 1.02 and volume > volume_sma_20 * 1.5
+bullish_order_block = bullish_ob_condition and not bullish_ob_condition[1]
+
+// Bearish Order Block - Last bullish candle before strong bearish move  
+bearish_ob_condition = close[1] > open[1] and close < close[1] * 0.98 and volume > volume_sma_20 * 1.5
+bearish_order_block = bearish_ob_condition and not bearish_ob_condition[1]
+
+// Liquidity Zones (LuxAlgo Style) - Areas with multiple touches
+liquidity_high = ta.highest(high, 20)
+liquidity_low = ta.lowest(low, 20)
+
+// Count touches at key levels
+high_touches = 0
+low_touches = 0
+for i = 1 to 10
+    if math.abs(high[i] - liquidity_high) < (high - low) * 0.001
+        high_touches += 1
+    if math.abs(low[i] - liquidity_low) < (high - low) * 0.001
+        low_touches += 1
+
+liquidity_grab_high = high_touches >= 2 and close > liquidity_high
+liquidity_grab_low = low_touches >= 2 and close < liquidity_low
+
+// Premium/Discount Zones (LuxAlgo Style)
+range_high = ta.highest(high, 50)
+range_low = ta.lowest(low, 50)
+range_mid = (range_high + range_low) / 2
+
+premium_zone = close > range_mid + (range_high - range_mid) * 0.5  // Upper 25%
+discount_zone = close < range_mid - (range_mid - range_low) * 0.5  // Lower 25%
+fair_value_zone = not premium_zone and not discount_zone
+
+// Smart Money Flow Indicator (LuxAlgo Style)
+// Combines volume, price action, and market structure
+smart_money_bullish = bos_bullish or (bullish_order_block and discount_zone) or 
+   (choch_bullish and volume > volume_sma_20 * 2.0)
+
+smart_money_bearish = bos_bearish or (bearish_order_block and premium_zone) or 
+   (choch_bearish and volume > volume_sma_20 * 2.0)
+
+// Confluence Zones (LuxAlgo Style) - Multiple factors aligning
+confluence_bullish = discount_zone and bullish_order_block and 
+   (rsi < rsi_oversold or bullish_divergence) and volume_ok
+
+confluence_bearish = premium_zone and bearish_order_block and 
+   (rsi > rsi_overbought or bearish_divergence) and volume_ok
 
 // Find significant pivot points for wave analysis - Day Trading Optimized
 pivot_high_strength = 5  // Shorter for intraday waves
@@ -544,6 +636,42 @@ if gap_up and volume > volume_ma * 1.5
 if gap_down and volume > volume_ma * 1.5
     bearish_score += 1
 
+// LuxAlgo-Style Market Structure Signals
+if bos_bullish or choch_bullish
+    bullish_score += 3  // High weight for structure breaks
+if bos_bearish or choch_bearish
+    bearish_score += 3
+
+// Order Block Signals
+if bullish_order_block and discount_zone
+    bullish_score += 2  // Buying at discount with institutional interest
+if bearish_order_block and premium_zone
+    bearish_score += 2  // Selling at premium with institutional interest
+
+// Smart Money Flow Signals
+if smart_money_bullish
+    bullish_score += 2
+if smart_money_bearish
+    bearish_score += 2
+
+// Confluence Zone Signals (Highest Priority)
+if confluence_bullish
+    bullish_score += 4  // Maximum weight for multiple factor alignment
+if confluence_bearish
+    bearish_score += 4
+
+// Liquidity Grab Signals
+if liquidity_grab_low and bullish_reversal
+    bullish_score += 2  // Liquidity grabbed, ready for reversal
+if liquidity_grab_high and bearish_reversal
+    bearish_score += 2
+
+// Premium/Discount Zone Adjustments
+if premium_zone and buy_signal
+    bullish_score -= 1  // Reduce bullish bias in premium (expensive) zone
+if discount_zone and sell_signal
+    bearish_score -= 1  // Reduce bearish bias in discount (cheap) zone
+
 // ============================================================================
 // FINAL SIGNALS - Ultra Strong Conditions Only
 // ============================================================================
@@ -555,21 +683,23 @@ required_difference = min_score * signal_strength_multiplier
 // HIGH CONFIDENCE SIGNALS - Balanced for Practical Trading
 // Require strong confirmations but not impossible standards
 
-// Strong buy: Multiple confirmations required + Day Trading Filters
+// Strong buy: Multiple confirmations + LuxAlgo-Style Smart Money Filter
 strong_buy_conditions = bullish_score >= min_score and 
    score_difference >= required_difference and 
    bullish_score > bearish_score and
    time_filter_ok and volume_ok and
+   (not smart_money_filter or smart_money_bullish or confluence_bullish) and
    (golden_cross or (current_wave == 1 or current_wave == 3) or bullish_reversal or 
-   (rsi < rsi_oversold and macd_line > signal_line))
+   (rsi < rsi_oversold and macd_line > signal_line) or bos_bullish)
 
-// Strong sell: Multiple confirmations required + Day Trading Filters  
+// Strong sell: Multiple confirmations + LuxAlgo-Style Smart Money Filter  
 strong_sell_conditions = bearish_score >= min_score and 
    score_difference >= required_difference and 
    bearish_score > bullish_score and
    time_filter_ok and volume_ok and
+   (not smart_money_filter or smart_money_bearish or confluence_bearish) and
    (death_cross or current_wave == 5 or bearish_reversal or 
-   (rsi > rsi_overbought and macd_line < signal_line))
+   (rsi > rsi_overbought and macd_line < signal_line) or bos_bearish)
 
 // Final signals - High confidence but achievable
 buy_signal = strong_buy_conditions
@@ -781,6 +911,58 @@ plot(major_support_1, color=support_zone ? color.green : color.new(color.green, 
      style=plot.style_line, linewidth=1, title="Major Support")
 plot(major_resistance_1, color=resistance_zone ? color.red : color.new(color.red, 70), 
      style=plot.style_line, linewidth=1, title="Major Resistance")
+
+// ============================================================================
+// LUXALGO-STYLE VISUALIZATION
+// ============================================================================
+
+// Premium/Discount Zone Background (LuxAlgo Style)
+bgcolor(show_premium_discount and premium_zone ? color.new(color.red, 95) : na, title="Premium Zone")
+bgcolor(show_premium_discount and discount_zone ? color.new(color.green, 95) : na, title="Discount Zone")
+
+// Market Structure Labels (LuxAlgo Style) - Perfect Tracking
+if show_market_structure and bos_bullish
+    label.new(bar_index, na, "BOS↑", color=color.green, textcolor=color.white, 
+     style=label.style_label_up, size=size.small, yloc=yloc.belowbar)
+
+if show_market_structure and bos_bearish
+    label.new(bar_index, na, "BOS↓", color=color.red, textcolor=color.white, 
+     style=label.style_label_down, size=size.small, yloc=yloc.abovebar)
+
+if show_market_structure and choch_bullish
+    label.new(bar_index, na, "CHoCH↑", color=color.blue, textcolor=color.white, 
+     style=label.style_label_up, size=size.small, yloc=yloc.belowbar)
+
+if show_market_structure and choch_bearish
+    label.new(bar_index, na, "CHoCH↓", color=color.purple, textcolor=color.white, 
+     style=label.style_label_down, size=size.small, yloc=yloc.abovebar)
+
+// Order Block Visualization (LuxAlgo Style)
+if show_order_blocks and bullish_order_block
+    label.new(bar_index, na, "OB+", color=color.lime, textcolor=color.black, 
+     style=label.style_label_up, size=size.tiny, yloc=yloc.belowbar)
+
+if show_order_blocks and bearish_order_block
+    label.new(bar_index, na, "OB-", color=color.orange, textcolor=color.white, 
+     style=label.style_label_down, size=size.tiny, yloc=yloc.abovebar)
+
+// Liquidity Grab Alerts (LuxAlgo Style)
+if show_liquidity_zones and liquidity_grab_high
+    label.new(bar_index, na, "LIQ↑", color=color.yellow, textcolor=color.red, 
+     style=label.style_label_down, size=size.small, yloc=yloc.abovebar)
+
+if show_liquidity_zones and liquidity_grab_low
+    label.new(bar_index, na, "LIQ↓", color=color.yellow, textcolor=color.green, 
+     style=label.style_label_up, size=size.small, yloc=yloc.belowbar)
+
+// Confluence Zone Alerts (LuxAlgo Style - Highest Priority)
+if confluence_bullish
+    label.new(bar_index, na, "⭐ CONFLUENCE", color=color.aqua, textcolor=color.white, 
+     style=label.style_label_up, size=size.normal, yloc=yloc.belowbar)
+
+if confluence_bearish
+    label.new(bar_index, na, "⭐ CONFLUENCE", color=color.maroon, textcolor=color.white, 
+     style=label.style_label_down, size=size.normal, yloc=yloc.abovebar)
 
 // ============================================================================
 // CONSOLIDATED REVERSAL SIGNALS - Clean Single Labels
@@ -1006,39 +1188,36 @@ if true
     else
         table.cell(trading_dashboard, 1, 4, "WAIT: " + str.tostring(close, "#.##"), text_color=color.black, bgcolor=color.gray)
     
-    // Day Trading Status
-    table.cell(trading_dashboard, 0, 5, "⏰ Day Trading", text_color=color.black)
-    dt_status = not time_filter_ok ? "Outside Hours" : 
-               not volume_ok ? "Low Volume" : 
-               "Active Session"
-    dt_color = not time_filter_ok ? color.red : 
-              not volume_ok ? color.orange : color.green
-    table.cell(trading_dashboard, 1, 5, dt_status, text_color=color.white, bgcolor=dt_color)
+    // LuxAlgo-Style Market Analysis
+    table.cell(trading_dashboard, 0, 5, "🏛️ Smart Money", text_color=color.black)
+    sm_status = smart_money_bullish ? "BULLISH" : 
+               smart_money_bearish ? "BEARISH" : 
+               confluence_bullish ? "CONFLUENCE+" : 
+               confluence_bearish ? "CONFLUENCE-" : "NEUTRAL"
+    sm_color = smart_money_bullish or confluence_bullish ? color.green : 
+              smart_money_bearish or confluence_bearish ? color.red : color.gray
+    table.cell(trading_dashboard, 1, 5, sm_status, text_color=color.white, bgcolor=sm_color)
     
-    // Day Trading Optimization
-    table.cell(trading_dashboard, 0, 6, "⚙️ Day Trading Tips", text_color=color.black)
-    dt_optimization = total_trades == 0 and not time_filter_ok ? "Enable Time Filter" :
-       total_trades == 0 and not volume_ok ? "Lower Volume Filter" :
-       total_trades == 0 ? "Lower Min Score (6-7)" : 
-       win_rate < 50 ? "Tighter Stops (1-2%)" : 
-       avg_profit_per_trade < 1 ? "Quick TP (2-3%)" : 
-       total_trades > 20 ? "Higher Min Score" : "Good for Day Trading"
-    dt_opt_color = total_trades == 0 ? color.orange : 
-       win_rate < 50 ? color.red : 
-       avg_profit_per_trade < 1 ? color.orange : 
-       total_trades > 20 ? color.blue : color.green
-    table.cell(trading_dashboard, 1, 6, dt_optimization, text_color=color.white, bgcolor=dt_opt_color)
+    // LuxAlgo-Style Zone Analysis
+    table.cell(trading_dashboard, 0, 6, "📍 Price Zone", text_color=color.black)
+    zone_status = premium_zone ? "PREMIUM (Sell Zone)" : 
+                 discount_zone ? "DISCOUNT (Buy Zone)" : 
+                 "FAIR VALUE (Neutral)"
+    zone_color = premium_zone ? color.red : 
+                discount_zone ? color.green : color.gray
+    table.cell(trading_dashboard, 1, 6, zone_status, text_color=color.white, bgcolor=zone_color)
     
-    // Day Trading Configuration Help
-    table.cell(trading_dashboard, 0, 7, "💡 Intraday Guide", text_color=color.black)
-    intraday_help = not time_filter_ok ? "Outside trading hours" :
-       not volume_ok ? "Wait for volume spike" :
-       current_wave == 0 ? "No clear Elliott Wave" :
-       current_wave == 1 or current_wave == 3 ? "Perfect buy wave!" :
-       current_wave == 2 or current_wave == 4 ? "Correction - wait" :
-       current_wave == 5 ? "Final wave - be careful" : "Monitor closely"
-    help_color = not time_filter_ok ? color.red :
-       not volume_ok ? color.orange :
-       current_wave == 1 or current_wave == 3 ? color.green :
-       current_wave == 5 ? color.orange : color.blue
-    table.cell(trading_dashboard, 1, 7, intraday_help, text_color=color.white, bgcolor=help_color)
+    // LuxAlgo-Style Trading Guide
+    table.cell(trading_dashboard, 0, 7, "💡 LuxAlgo Guide", text_color=color.black)
+    luxalgo_guide = confluence_bullish ? "⭐ Perfect Buy Setup!" :
+       confluence_bearish ? "⭐ Perfect Sell Setup!" :
+       (bos_bullish and discount_zone) ? "BOS + Discount = Buy" :
+       (bos_bearish and premium_zone) ? "BOS + Premium = Sell" :
+       (bullish_order_block and discount_zone) ? "OB + Discount = Buy" :
+       (bearish_order_block and premium_zone) ? "OB + Premium = Sell" :
+       premium_zone ? "Premium - Wait for sells" :
+       discount_zone ? "Discount - Look for buys" : "Fair value - Monitor"
+    luxalgo_color = confluence_bullish or (bos_bullish and discount_zone) ? color.green :
+       confluence_bearish or (bos_bearish and premium_zone) ? color.red :
+       premium_zone or discount_zone ? color.blue : color.gray
+    table.cell(trading_dashboard, 1, 7, luxalgo_guide, text_color=color.white, bgcolor=luxalgo_color)
