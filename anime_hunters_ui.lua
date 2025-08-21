@@ -607,6 +607,53 @@ local function disconnectTargetMonitoring()
     end
 end
 
+local function findNextTarget()
+    -- Check if player is in gamemode or world
+    if currentPlayerMode ~= "" and currentPlayerMode ~= "World" then
+        -- In gamemode - get enemies from gamemode path
+        local enemies = getEnemiesInGamemode(currentPlayerMode)
+        if #enemies == 0 then return nil end
+        return findBestTarget(enemies)
+    else
+        -- In world - get enemies from selected worlds
+        if #selectedWorlds == 0 then return nil end
+        local enemies = getAllEnemiesInSelectedWorlds()
+        if #enemies == 0 then return nil end
+        return findBestTarget(enemies)
+    end
+end
+
+local function switchToNextTarget()
+    -- Disconnect monitoring for old target
+    disconnectTargetMonitoring()
+    
+    local newTarget = findNextTarget()
+    if newTarget then
+        currentTarget = newTarget
+        tooFarNotified = false -- Reset notification for new target
+        lastNotifiedTarget = nil -- Reset last notified target
+        
+        -- Start monitoring the new target
+        monitorTargetChanges(currentTarget)
+        
+        -- Move to new target immediately
+        if movementType ~= "Idle" then
+            moveToTarget(currentTarget)
+        end
+        
+        WindUI:Notify({
+            Title = "Target Switched",
+            Content = "New target: " .. currentTarget.health .. " HP",
+            Icon = "arrow-right",
+            Duration = 1,
+        })
+        return true
+    else
+        currentTarget = nil
+        return false
+    end
+end
+
 -- Auto Attack Function
 local lastAttackTime = 0
 
@@ -637,19 +684,23 @@ local function startAutoAttack()
         if isInAttackRange(currentTarget) then
             -- Protected attack call to prevent script breaking
             spawn(function()
-                local success, err = pcall(function()
-                    local args = {
-                        "General",
-                        "Attack",
-                        "Click",
-                        currentTarget.id
-                    }
-                    game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Signal"):FireServer(unpack(args))
-                end)
-                
-                if not success then
-                    -- Attack failed, but don't break the script
-                    warn("Attack failed: " .. tostring(err))
+                -- Store target ID before attack to prevent nil access
+                local targetId = currentTarget and currentTarget.id
+                if targetId then
+                    local success, err = pcall(function()
+                        local args = {
+                            "General",
+                            "Attack",
+                            "Click",
+                            targetId
+                        }
+                        game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Signal"):FireServer(unpack(args))
+                    end)
+                    
+                    if not success then
+                        -- Attack failed, but don't break the script
+                        warn("Attack failed: " .. tostring(err))
+                    end
                 end
             end)
             
@@ -776,22 +827,6 @@ local function stopModeMonitoring()
     end
 end
 
-local function findNextTarget()
-    -- Check if player is in gamemode or world
-    if currentPlayerMode ~= "" and currentPlayerMode ~= "World" then
-        -- In gamemode - get enemies from gamemode path
-        local enemies = getEnemiesInGamemode(currentPlayerMode)
-        if #enemies == 0 then return nil end
-        return findBestTarget(enemies)
-    else
-        -- In world - get enemies from selected worlds
-        if #selectedWorlds == 0 then return nil end
-        local enemies = getAllEnemiesInSelectedWorlds()
-        if #enemies == 0 then return nil end
-        return findBestTarget(enemies)
-    end
-end
-
 local function monitorTargetChanges(target)
     disconnectTargetMonitoring()
     
@@ -827,37 +862,6 @@ local function monitorTargetChanges(target)
             end
         end)
     end)
-end
-
-local function switchToNextTarget()
-    -- Disconnect monitoring for old target
-    disconnectTargetMonitoring()
-    
-    local newTarget = findNextTarget()
-    if newTarget then
-        currentTarget = newTarget
-        tooFarNotified = false -- Reset notification for new target
-        lastNotifiedTarget = nil -- Reset last notified target
-        
-        -- Start monitoring the new target
-        monitorTargetChanges(currentTarget)
-        
-        -- Move to new target immediately
-        if movementType ~= "Idle" then
-            moveToTarget(currentTarget)
-        end
-        
-        WindUI:Notify({
-            Title = "Target Switched",
-            Content = "New target: " .. currentTarget.health .. " HP",
-            Icon = "arrow-right",
-            Duration = 1,
-        })
-        return true
-    else
-        currentTarget = nil
-        return false
-    end
 end
 
 local lastHealthCheckTime = 0
