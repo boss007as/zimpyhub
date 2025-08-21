@@ -20,6 +20,15 @@ local tooFarNotified = false
 local targetDeathConnection = nil
 local targetHealthConnection = nil
 
+-- Variables for Auto Join Mode
+local autoJoinEnabled = false
+local selectedMode = ""
+local autoLeaveEnabled = false
+local leaveAtTime = 30
+local currentPlayerMode = ""
+local modeMonitorConnection = nil
+local playerModeConnection = nil
+
 -- Services
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -460,13 +469,22 @@ local function startAutoAttack()
                 -- Simple part existence check (death/health monitoring is handled by attribute signals)
                 if currentTarget.part and currentTarget.part.Parent then
                     if isInAttackRange(currentTarget) then
-                        local args = {
-                            "General",
-                            "Attack",
-                            "Click",
-                            currentTarget.id
-                        }
-                        game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Signal"):FireServer(unpack(args))
+                        -- Protected attack call to prevent script breaking
+                        local success, err = pcall(function()
+                            local args = {
+                                "General",
+                                "Attack",
+                                "Click",
+                                currentTarget.id
+                            }
+                            game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Signal"):FireServer(unpack(args))
+                        end)
+                        
+                        if not success then
+                            -- Attack failed, but don't break the script
+                            warn("Attack failed: " .. tostring(err))
+                        end
+                        
                         tooFarNotified = false -- Reset notification flag when in range
                         wait(autoAttackSpeed)
                     else
@@ -667,25 +685,12 @@ local WorldDropdown = Tabs.MainTab:Dropdown({
         currentTarget = nil -- Reset target when worlds change
         disconnectTargetMonitoring() -- Disconnect old target monitoring
         
-        -- Update enemy names based on selected worlds
-        local success, enemyNames = pcall(function()
-            return getEnemyNamesFromModuleScript(selectedWorlds)
-        end)
-        
-        if success and enemyNames then
-            EnemyNameDropdown:Refresh(enemyNames)
-            print("Loaded " .. #enemyNames .. " enemy names from selected worlds")
-        else
-            print("Error loading enemy names, using empty list")
-            EnemyNameDropdown:Refresh({})
-        end
-        
         if #selectedWorlds > 0 then
             WindUI:Notify({
                 Title = "Worlds Selected",
-                Content = "Selected " .. #selectedWorlds .. " world(s)",
+                Content = "Selected " .. #selectedWorlds .. " world(s). Use Refresh Enemy Names to update list.",
                 Icon = "map-pin",
-                Duration = 2,
+                Duration = 3,
             })
         else
             WindUI:Notify({
@@ -695,7 +700,6 @@ local WorldDropdown = Tabs.MainTab:Dropdown({
                 Duration = 2,
             })
         end
-
     end
 })
 
