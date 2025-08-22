@@ -66,12 +66,20 @@ position_size = input.float(5.0, title="Position Size % of Equity", tooltip="Day
 // Day Trading Signal Settings
 min_volume_multiplier = input.float(1.5, title="Minimum Volume Multiplier", tooltip="Day Trading: 1.5-2.0. Ensures adequate liquidity", group="Day Trading", minval=1.0, maxval=3.0)
 
-// LuxAlgo-Style Advanced Features
-show_market_structure = input.bool(true, title="Show Market Structure (BOS/CHoCH)", tooltip="Break of Structure and Change of Character analysis", group="LuxAlgo Features")
-show_order_blocks = input.bool(true, title="Show Order Blocks", tooltip="Institutional order block zones", group="LuxAlgo Features")
-show_liquidity_zones = input.bool(true, title="Show Liquidity Zones", tooltip="Areas where liquidity is likely to be grabbed", group="LuxAlgo Features")
-show_premium_discount = input.bool(true, title="Show Premium/Discount Zones", tooltip="Fair value gaps and imbalance zones", group="LuxAlgo Features")
-smart_money_filter = input.bool(true, title="Smart Money Filter", tooltip="Filter signals based on institutional flow", group="LuxAlgo Features")
+// Clean Chart Configuration - Reduce Clutter
+show_core_signals_only = input.bool(true, title="🎯 Core Signals Only (Recommended)", tooltip="Shows only essential confirmations: Fib + Divergence + Smart Money", group="Chart Display")
+show_fibonacci_levels = input.bool(true, title="📊 Fibonacci Levels", tooltip="Key support/resistance levels", group="Chart Display")
+show_volume_confirmation = input.bool(true, title="📈 Volume Confirmation", tooltip="Volume-based signal validation", group="Chart Display")
+
+// Advanced Features (Optional)
+show_market_structure = input.bool(false, title="Show Market Structure (BOS/CHoCH)", tooltip="Only for lower timeframes. Hide for 4H+ trends", group="Advanced Features")
+show_order_blocks = input.bool(true, title="Show Order Blocks", tooltip="Institutional zones - Core feature", group="Advanced Features")
+show_elliott_wave_labels = input.bool(false, title="Show Elliott Wave Labels", tooltip="Can repaint - use Fib + structure instead", group="Advanced Features")
+smart_money_filter = input.bool(true, title="Smart Money Filter", tooltip="Recommended: ON. Filters noise", group="Advanced Features")
+
+// Multi-Timeframe Settings
+higher_tf_trend_filter = input.bool(true, title="Higher Timeframe Trend Filter", tooltip="Uses EMA 50/200 for trend direction", group="Multi-Timeframe")
+use_atr_risk_management = input.bool(true, title="ATR-Based Risk Management", tooltip="Dynamic stops based on volatility", group="Multi-Timeframe")
 
 // ============================================================================
 // INDICATOR CALCULATIONS
@@ -140,6 +148,19 @@ mfi = ta.mfi(close, 14)
 // Global volume calculations to avoid conditional ta.sma calls
 volume_sma_20 = ta.sma(volume, 20)
 close_sma_50 = ta.sma(close, 50)
+
+// ATR for dynamic risk management
+atr = ta.atr(14)
+atr_multiplier = 2.0
+
+// Volume Profile / OBV for confirmation
+obv_sma = ta.sma(obv, 20)
+volume_profile_bullish = obv > obv_sma and volume > volume_sma_20 * 1.2
+volume_profile_bearish = obv < obv_sma and volume > volume_sma_20 * 1.2
+
+// Multi-timeframe trend filter (simulated)
+higher_tf_bullish = ema_fast > sma_long and close > sma_long
+higher_tf_bearish = ema_fast < sma_long and close < sma_long
 
 // ============================================================================
 // GLOBAL VARIABLES DECLARATION
@@ -305,18 +326,27 @@ premium_zone = close > range_mid + (range_high - range_mid) * 0.5  // Upper 25%
 discount_zone = close < range_mid - (range_mid - range_low) * 0.5  // Lower 25%
 fair_value_zone = not premium_zone and not discount_zone
 
-// Divergence Detection (moved here to be available for confluence zones)
+// ============================================================================
+// STRENGTHENED DIVERGENCE DETECTION WITH VOLUME CONFIRMATION
+// ============================================================================
+
 // Price making higher highs but indicators making lower highs (bearish divergence)
 price_higher_high = high > ta.highest(high, 20)[1]
 rsi_lower_high = rsi < ta.highest(rsi, 20)[1] and rsi > 50
 macd_lower_high = macd_line < ta.highest(macd_line, 20)[1] and macd_line > 0
-bearish_divergence = price_higher_high and (rsi_lower_high or macd_lower_high)
+
+// Strengthened: Require BOTH RSI AND MACD divergence + Volume confirmation
+strong_bearish_divergence = price_higher_high and rsi_lower_high and macd_lower_high and volume_profile_bearish
+bearish_divergence = strong_bearish_divergence  // Only strong divergences
 
 // Price making lower lows but indicators making higher lows (bullish divergence)
 price_lower_low = low < ta.lowest(low, 20)[1]
 rsi_higher_low = rsi > ta.lowest(rsi, 20)[1] and rsi < 50
 macd_higher_low = macd_line > ta.lowest(macd_line, 20)[1] and macd_line < 0
-bullish_divergence = price_lower_low and (rsi_higher_low or macd_higher_low)
+
+// Strengthened: Require BOTH RSI AND MACD divergence + Volume confirmation
+strong_bullish_divergence = price_lower_low and rsi_higher_low and macd_higher_low and volume_profile_bullish
+bullish_divergence = strong_bullish_divergence  // Only strong divergences
 
 // Smart Money Flow Indicator (LuxAlgo Style)
 // Combines volume, price action, and market structure
@@ -709,23 +739,28 @@ required_difference = min_score * signal_strength_multiplier
 // HIGH CONFIDENCE SIGNALS - Balanced for Practical Trading
 // Require strong confirmations but not impossible standards
 
-// Strong buy: Multiple confirmations + LuxAlgo-Style Smart Money Filter
+// Core Clean Setup: Essential Confirmations Only
+// Trend Filter + Smart Money + Fibonacci + Strong Divergence + Volume
+
 strong_buy_conditions = bullish_score >= min_score and 
    score_difference >= required_difference and 
    bullish_score > bearish_score and
    time_filter_ok and volume_ok and
+   (not higher_tf_trend_filter or higher_tf_bullish) and  // Multi-timeframe filter
+   volume_profile_bullish and  // Volume confirmation required
    (not smart_money_filter or smart_money_bullish or confluence_bullish) and
-   (golden_cross or (current_wave == 1 or current_wave == 3) or bullish_reversal or 
-   (rsi < rsi_oversold and macd_line > signal_line) or bos_bullish)
+   (golden_cross or discount_zone or bullish_divergence or 
+   (current_wave == 1 or current_wave == 3) or bos_bullish)
 
-// Strong sell: Multiple confirmations + LuxAlgo-Style Smart Money Filter  
 strong_sell_conditions = bearish_score >= min_score and 
    score_difference >= required_difference and 
    bearish_score > bullish_score and
    time_filter_ok and volume_ok and
+   (not higher_tf_trend_filter or higher_tf_bearish) and  // Multi-timeframe filter
+   volume_profile_bearish and  // Volume confirmation required
    (not smart_money_filter or smart_money_bearish or confluence_bearish) and
-   (death_cross or current_wave == 5 or bearish_reversal or 
-   (rsi > rsi_overbought and macd_line < signal_line) or bos_bearish)
+   (death_cross or premium_zone or bearish_divergence or 
+   current_wave == 5 or bos_bearish)
 
 // Final signals - High confidence but achievable
 buy_signal = strong_buy_conditions
@@ -847,20 +882,23 @@ if true
        discount_zone ? color.green : color.gray
     table.cell(trading_dashboard, 1, 6, zone_status, text_color=color.white, bgcolor=zone_color)
     
-    // LuxAlgo-Style Trading Guide
-    table.cell(trading_dashboard, 0, 7, "💡 LuxAlgo Guide", text_color=color.black)
-    luxalgo_guide = confluence_bullish ? "⭐ Perfect Buy Setup!" :
-       confluence_bearish ? "⭐ Perfect Sell Setup!" :
-       (bos_bullish and discount_zone) ? "BOS + Discount = Buy" :
-       (bos_bearish and premium_zone) ? "BOS + Premium = Sell" :
-       (bullish_order_block and discount_zone) ? "OB + Discount = Buy" :
-       (bearish_order_block and premium_zone) ? "OB + Premium = Sell" :
-       premium_zone ? "Premium - Wait for sells" :
-       discount_zone ? "Discount - Look for buys" : "Fair value - Monitor"
-    luxalgo_color = confluence_bullish or (bos_bullish and discount_zone) ? color.green :
-       confluence_bearish or (bos_bearish and premium_zone) ? color.red :
+    // Core Setup Guide (Clean & Professional)
+    table.cell(trading_dashboard, 0, 7, "💡 Core Setup", text_color=color.black)
+    core_guide = confluence_bullish ? "⭐ PERFECT BUY!" :
+       confluence_bearish ? "⭐ PERFECT SELL!" :
+       (strong_bullish_divergence and discount_zone and volume_profile_bullish) ? "Triple Confirmation Buy" :
+       (strong_bearish_divergence and premium_zone and volume_profile_bearish) ? "Triple Confirmation Sell" :
+       (bullish_order_block and discount_zone and higher_tf_bullish) ? "Trend + OB + Zone" :
+       (bearish_order_block and premium_zone and higher_tf_bearish) ? "Trend + OB + Zone" :
+       not higher_tf_bullish and not higher_tf_bearish ? "Sideways - Wait" :
+       premium_zone ? "Premium - Look sells" :
+       discount_zone ? "Discount - Look buys" : "Monitor closely"
+    core_color = confluence_bullish ? color.green :
+       confluence_bearish ? color.red :
+       (strong_bullish_divergence and discount_zone) or (bullish_order_block and discount_zone and higher_tf_bullish) ? color.green :
+       (strong_bearish_divergence and premium_zone) or (bearish_order_block and premium_zone and higher_tf_bearish) ? color.red :
        premium_zone or discount_zone ? color.blue : color.gray
-    table.cell(trading_dashboard, 1, 7, luxalgo_guide, text_color=color.white, bgcolor=luxalgo_color)
+    table.cell(trading_dashboard, 1, 7, core_guide, text_color=color.white, bgcolor=core_color)
 
 // ============================================================================
 // BACKTESTING AND TRADE TRACKING
@@ -950,14 +988,24 @@ profit_factor := losing_trades > 0 and winning_trades > 0 ? winning_trades / los
 // PLOTTING AND VISUALIZATION
 // ============================================================================
 
-// Essential Plots Only - Reduced to minimize plot count
-plot(ema_fast, color=color.blue, title="EMA Fast", linewidth=1)
-plot(sma_long, color=color.purple, title="SMA Long", linewidth=2)
+// ============================================================================
+// CORE CLEAN SETUP - Essential Elements Only
+// ============================================================================
 
-// Plot Bollinger Bands
-p1 = plot(bb_upper, color=color.gray, title="BB Upper")
-p2 = plot(bb_lower, color=color.gray, title="BB Lower")
-fill(p1, p2, color=color.new(color.gray, 90), title="BB Fill")
+// Trend Filter: EMA 50 & EMA 200 equivalent
+plot(ema_fast, color=higher_tf_bullish ? color.green : color.red, title="EMA Trend", linewidth=2)
+plot(sma_long, color=color.purple, title="Higher TF Trend", linewidth=3)
+
+// Fibonacci Levels (Core Feature)
+fib_color = show_fibonacci_levels ? color.orange : na
+plot(show_fibonacci_levels ? fib_618 : na, color=fib_color, style=plot.style_line, linewidth=1, title="Fib 61.8%")
+plot(show_fibonacci_levels ? fib_382 : na, color=fib_color, style=plot.style_line, linewidth=1, title="Fib 38.2%")
+
+// ATR-Based Risk Management Bands
+atr_upper = close + (atr * atr_multiplier)
+atr_lower = close - (atr * atr_multiplier)
+plot(use_atr_risk_management ? atr_upper : na, color=color.red, style=plot.style_line, linewidth=1, title="ATR Stop Upper")
+plot(use_atr_risk_management ? atr_lower : na, color=color.green, style=plot.style_line, linewidth=1, title="ATR Stop Lower")
 
 // ============================================================================
 // ELLIOTT WAVE VISUALIZATION & PRICE LEVELS
@@ -976,26 +1024,19 @@ wave_color := current_wave == 1 ? color.green : current_wave == 2 ? color.orange
 // ENHANCED ELLIOTT WAVE VISUALIZATION
 // ============================================================================
 
-// Show Elliott Wave structure with proper validation - Resize Resistant
-if current_wave > 0
-    wave_status = current_wave == 1 ? "🌊 WAVE 1 - Early Entry" : 
-                 current_wave == 2 ? "🌊 WAVE 2 - Correction" : 
-                 current_wave == 3 ? "🌊 WAVE 3 - Strongest!" : 
-                 current_wave == 4 ? "🌊 WAVE 4 - Correction" : 
-                 current_wave == 5 ? "🌊 WAVE 5 - Final Push" : "🌊 NO WAVE"
+// Elliott Wave Labels (Optional - Can Repaint)
+if show_elliott_wave_labels and current_wave > 0
+    wave_status = current_wave == 1 ? "W1" : current_wave == 2 ? "W2" : 
+                 current_wave == 3 ? "W3" : current_wave == 4 ? "W4" : 
+                 current_wave == 5 ? "W5" : ""
     
-    // Add wave validation info
-    wave_validation = wave_state >= 3 ? " ✓VALID" : " ?FORMING"
-    
-    // Show label when wave changes or for important confirmations
-    show_wave_label = (current_wave != current_wave[1]) or 
-       (wave_state >= 3 and wave_state != wave_state[1]) or
-       (bar_index % 20 == 0 and current_wave > 0)
+    // Only show on wave changes to reduce clutter
+    show_wave_label = current_wave != current_wave[1]
     
     if show_wave_label
-        label.new(bar_index, na, wave_status + wave_validation, 
+        label.new(bar_index, na, wave_status, 
          color=wave_color, textcolor=color.white, style=label.style_label_down, 
-         size=size.normal, yloc=yloc.abovebar)
+         size=size.small, yloc=yloc.abovebar)
 
 // Draw wave structure lines for confirmed waves
 if not na(wave_1_start_price) and not na(wave_1_end_price) and wave_state >= 2
@@ -1050,52 +1091,50 @@ plot(major_resistance_1, color=resistance_zone ? color.red : color.new(color.red
 // LUXALGO-STYLE VISUALIZATION
 // ============================================================================
 
-// Premium/Discount Zone Background (LuxAlgo Style)
-bgcolor(show_premium_discount and premium_zone ? color.new(color.red, 95) : na, title="Premium Zone")
-bgcolor(show_premium_discount and discount_zone ? color.new(color.green, 95) : na, title="Discount Zone")
+// ============================================================================
+// CORE SIGNAL VISUALIZATION - Clean & Professional
+// ============================================================================
 
-// Market Structure Labels (LuxAlgo Style) - Perfect Tracking
-if show_market_structure and bos_bullish
-    label.new(bar_index, na, "BOS↑", color=color.green, textcolor=color.white, 
+// Premium/Discount Zone Background (Core Feature)
+bgcolor(premium_zone ? color.new(color.red, 97) : na, title="Premium Zone")
+bgcolor(discount_zone ? color.new(color.green, 97) : na, title="Discount Zone")
+
+// Core Confirmations Only (When Core Signals Mode is OFF)
+if not show_core_signals_only
+    // Market Structure (Optional for lower timeframes)
+    if show_market_structure and bos_bullish
+        label.new(bar_index, na, "BOS↑", color=color.green, textcolor=color.white, 
+         style=label.style_label_up, size=size.tiny, yloc=yloc.belowbar)
+    
+    if show_market_structure and bos_bearish
+        label.new(bar_index, na, "BOS↓", color=color.red, textcolor=color.white, 
+         style=label.style_label_down, size=size.tiny, yloc=yloc.abovebar)
+
+// Order Blocks (Core Feature - Always Show)
+if show_order_blocks and bullish_order_block and discount_zone
+    label.new(bar_index, na, "🏛️ OB", color=color.green, textcolor=color.white, 
      style=label.style_label_up, size=size.small, yloc=yloc.belowbar)
 
-if show_market_structure and bos_bearish
-    label.new(bar_index, na, "BOS↓", color=color.red, textcolor=color.white, 
+if show_order_blocks and bearish_order_block and premium_zone
+    label.new(bar_index, na, "🏛️ OB", color=color.red, textcolor=color.white, 
      style=label.style_label_down, size=size.small, yloc=yloc.abovebar)
 
-if show_market_structure and choch_bullish
-    label.new(bar_index, na, "CHoCH↑", color=color.blue, textcolor=color.white, 
+// Strong Divergence (Core Feature - Volume Confirmed)
+if strong_bullish_divergence
+    label.new(bar_index, na, "📈 DIV", color=color.lime, textcolor=color.black, 
      style=label.style_label_up, size=size.small, yloc=yloc.belowbar)
 
-if show_market_structure and choch_bearish
-    label.new(bar_index, na, "CHoCH↓", color=color.purple, textcolor=color.white, 
+if strong_bearish_divergence  
+    label.new(bar_index, na, "📉 DIV", color=color.orange, textcolor=color.white, 
      style=label.style_label_down, size=size.small, yloc=yloc.abovebar)
 
-// Order Block Visualization (LuxAlgo Style)
-if show_order_blocks and bullish_order_block
-    label.new(bar_index, na, "OB+", color=color.lime, textcolor=color.black, 
-     style=label.style_label_up, size=size.tiny, yloc=yloc.belowbar)
-
-if show_order_blocks and bearish_order_block
-    label.new(bar_index, na, "OB-", color=color.orange, textcolor=color.white, 
-     style=label.style_label_down, size=size.tiny, yloc=yloc.abovebar)
-
-// Liquidity Grab Alerts (LuxAlgo Style)
-if show_liquidity_zones and liquidity_grab_high
-    label.new(bar_index, na, "LIQ↑", color=color.yellow, textcolor=color.red, 
-     style=label.style_label_down, size=size.small, yloc=yloc.abovebar)
-
-if show_liquidity_zones and liquidity_grab_low
-    label.new(bar_index, na, "LIQ↓", color=color.yellow, textcolor=color.green, 
-     style=label.style_label_up, size=size.small, yloc=yloc.belowbar)
-
-// Confluence Zone Alerts (LuxAlgo Style - Highest Priority)
+// Confluence Zones (Highest Priority - Always Show)
 if confluence_bullish
-    label.new(bar_index, na, "⭐ CONFLUENCE", color=color.aqua, textcolor=color.white, 
+    label.new(bar_index, na, "⭐ PERFECT", color=color.blue, textcolor=color.white, 
      style=label.style_label_up, size=size.normal, yloc=yloc.belowbar)
 
 if confluence_bearish
-    label.new(bar_index, na, "⭐ CONFLUENCE", color=color.maroon, textcolor=color.white, 
+    label.new(bar_index, na, "⭐ PERFECT", color=color.purple, textcolor=color.white, 
      style=label.style_label_down, size=size.normal, yloc=yloc.abovebar)
 
 // ============================================================================
